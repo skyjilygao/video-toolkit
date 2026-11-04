@@ -19,7 +19,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-org/video-toolkit.git
+git clone https://github.com/skyjilygao/video-toolkit.git
 cd video-toolkit
 
 # 安装核心依赖

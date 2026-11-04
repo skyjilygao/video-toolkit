@@ -56,8 +56,9 @@ video-toolkit = "video_toolkit.cli:main"
 vt = "video_toolkit.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/video-toolkit"
-Documentation = "https://github.com/video-toolkit/docs"
+Homepage = "https://github.com/skyjilygao/video-toolkit"
+Documentation = "https://github.com/skyjilygao/video-toolkit"
+Repository = "https://github.com/skyjilygao/video-toolkit"
 
 [tool.setuptools.packages.find]
 where = ["src"]
