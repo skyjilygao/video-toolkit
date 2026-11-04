@@ -1,0 +1,25 @@
+# Video Toolkit 依赖
+# 安装: pip install -e .
+
+# 核心依赖
+opencv-python>=4.8.0
+ffmpeg-python>=0.2.0
+Pillow>=10.0.0
+numpy>=1.24.0
+pydantic>=2.0
+requests>=2.31.0
+
+# CLI
+click>=8.1.0
+rich>=13.0.0
+
+# OpenMontage 适配器依赖
+faster-whisper>=1.0.0
+scenedetect>=0.6.2
+av>=11
+
+# 可选依赖:
+# pip install -e ".[audio]"    # librosa, soundfile
+# pip install -e ".[ai]"       # torch, transformers
+# pip install -e ".[dev]"      # pytest, black, ruff, mypy
+# pip install -e ".[all]"

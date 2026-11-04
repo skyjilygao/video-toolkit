@@ -1,0 +1,90 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "video-toolkit"
+version = "0.1.0"
+description = "视频拆解与生成工具 - Video Decomposition and Generation Toolkit"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [
+    { name = "Video Toolkit" },
+]
+keywords = ["video", "analysis", "decomposition", "composition", "editing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Video",
+]
+
+dependencies = [
+    "opencv-python>=4.8.0",
+    "ffmpeg-python>=0.2.0",
+    "moviepy>=1.0.3",
+    "Pillow>=10.0.0",
+    "numpy>=1.24.0",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+audio = ["librosa>=0.10.0", "soundfile>=0.12.0"]
+detection = ["scenedetect>=0.6.2"]
+local-tts = ["pyttsx3>=2.90"]
+ai = ["torch>=2.0.0", "transformers>=4.30.0"]
+whisper = ["faster-whisper>=1.0.0"]
+youtube = ["youtube-transcript-api>=0.6.0", "yt-dlp>=2024.0.0"]
+openmontage = ["faster-whisper>=1.0.0", "scenedetect>=0.6.2", "av>=11"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "black>=23.0", "ruff>=0.1.0", "mypy>=1.0"]
+all = ["librosa>=0.10.0", "soundfile>=0.12.0", "scenedetect>=0.6.2", "pyttsx3>=2.90", "faster-whisper>=1.0.0", "youtube-transcript-api>=0.6.0"]
+
+[project.scripts]
+video-toolkit = "video_toolkit.cli:main"
+vt = "video_toolkit.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/video-toolkit"
+Documentation = "https://github.com/video-toolkit/docs"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+video_toolkit = ["py.typed"]
+
+# ===== 开发工具配置 =====
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "A"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
