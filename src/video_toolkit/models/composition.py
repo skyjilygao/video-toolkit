@@ -1,7 +1,8 @@
 """合成配置与结果模型."""
-from pydantic import BaseModel, Field
-from typing import List
+
 from enum import Enum
+
+from pydantic import BaseModel, Field
 
 
 class TransitionType(str, Enum):
@@ -45,7 +46,7 @@ class CompositionResult(BaseModel):
     """合成结果."""
 
     config: CompositionConfig = Field(default_factory=CompositionConfig)
-    segments_used: List[str] = Field(default_factory=list)
+    segments_used: list[str] = Field(default_factory=list)
     output_path: str = ""
     duration: float = 0.0
     success: bool = False

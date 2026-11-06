@@ -3,14 +3,13 @@
 使用 OpenCV 颜色直方图 + Farneback 光流法 + FFmpeg 实现完整的分析链。
 不依赖外部 AI 服务，完全本地运行。
 """
+
 from __future__ import annotations
 
 import json
 import os
 import subprocess
 import tempfile
-from pathlib import Path
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -20,7 +19,6 @@ from video_toolkit.analysis.base import BaseAnalysisAdapter
 from video_toolkit.analysis.manager import register_adapter
 from video_toolkit.models.analysis import (
     AudioEnergyProfile,
-    AudioEnergyPoint,
     KeyframeBrief,
     SceneBrief,
     TranscriptResult,
@@ -32,8 +30,14 @@ console = Console()
 
 def _run_ffprobe(video_path: str) -> dict:
     cmd = [
-        "ffprobe", "-v", "quiet", "-print_format", "json",
-        "-show_format", "-show_streams", video_path,
+        "ffprobe",
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        video_path,
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -51,9 +55,7 @@ def _extract_dominant_colors(image: np.ndarray, k: int = 5) -> list[str]:
     try:
         pixels = image.reshape(-1, 3).astype(np.float32)
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-        _, labels, centers = cv2.kmeans(
-            pixels, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS
-        )
+        _, labels, centers = cv2.kmeans(pixels, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
         counts = np.bincount(labels.flatten())
         dominant = centers[np.argsort(-counts)]
         return [f"#{int(c[2]):02x}{int(c[1]):02x}{int(c[0]):02x}" for c in dominant]
@@ -82,7 +84,7 @@ class CustomAdapter(BaseAnalysisAdapter):
 
     name = "custom"
 
-    def __init__(self, video_path: str, output_dir: Optional[str] = None):
+    def __init__(self, video_path: str, output_dir: str | None = None):
         super().__init__(video_path, output_dir)
         self._cap: cv2.VideoCapture | None = None
         self._fps: float = 30.0
@@ -125,9 +127,7 @@ class CustomAdapter(BaseAnalysisAdapter):
         console.print("[dim]正在转录音频 (faster-whisper base)...[/dim]")
         try:
             model = WhisperModel("base", device="cpu", compute_type="int8")
-            segments_iter, info = model.transcribe(
-                self.video_path, language=None, vad_filter=True
-            )
+            segments_iter, info = model.transcribe(self.video_path, language=None, vad_filter=True)
 
             segments = []
             full_text_parts = []
@@ -170,7 +170,7 @@ class CustomAdapter(BaseAnalysisAdapter):
 
     def _detect_scenes_pyscenedetect(self) -> list[SceneBrief]:
         try:
-            from scenedetect import open_video, SceneManager
+            from scenedetect import SceneManager, open_video
             from scenedetect.detectors import ContentDetector
         except ImportError:
             return []
@@ -184,12 +184,14 @@ class CustomAdapter(BaseAnalysisAdapter):
 
             scenes = []
             for i, (start, end) in enumerate(scene_list):
-                scenes.append(SceneBrief(
-                    scene_index=i,
-                    start_time=round(start.get_seconds(), 3),
-                    end_time=round(end.get_seconds(), 3),
-                    duration=round(end.get_seconds() - start.get_seconds(), 3),
-                ))
+                scenes.append(
+                    SceneBrief(
+                        scene_index=i,
+                        start_time=round(start.get_seconds(), 3),
+                        end_time=round(end.get_seconds(), 3),
+                        duration=round(end.get_seconds() - start.get_seconds(), 3),
+                    )
+                )
             return scenes
         except Exception:
             return []
@@ -197,10 +199,15 @@ class CustomAdapter(BaseAnalysisAdapter):
     def _detect_scenes_ffmpeg(self) -> list[SceneBrief]:
         """FFmpeg select 滤镜检测场景."""
         cmd = [
-            "ffprobe", "-v", "quiet",
-            "-show_entries", "frame=pts_time",
-            "-of", "json",
-            "-f", "lavfi",
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-show_entries",
+            "frame=pts_time",
+            "-of",
+            "json",
+            "-f",
+            "lavfi",
             f"movie='{self.video_path}',select='gt(scene,0.3)'",
         ]
 
@@ -226,12 +233,14 @@ class CustomAdapter(BaseAnalysisAdapter):
         for i in range(len(change_points) - 1):
             start = change_points[i]
             end = change_points[i + 1]
-            scenes.append(SceneBrief(
-                scene_index=i,
-                start_time=round(start, 3),
-                end_time=round(end, 3),
-                duration=round(end - start, 3),
-            ))
+            scenes.append(
+                SceneBrief(
+                    scene_index=i,
+                    start_time=round(start, 3),
+                    end_time=round(end, 3),
+                    duration=round(end - start, 3),
+                )
+            )
 
         return scenes if scenes else self._segment_uniform()
 
@@ -243,12 +252,14 @@ class CustomAdapter(BaseAnalysisAdapter):
         t = 0.0
         while t < self._duration:
             end = min(t + seg_duration, self._duration)
-            scenes.append(SceneBrief(
-                scene_index=i,
-                start_time=round(t, 3),
-                end_time=round(end, 3),
-                duration=round(end - t, 3),
-            ))
+            scenes.append(
+                SceneBrief(
+                    scene_index=i,
+                    start_time=round(t, 3),
+                    end_time=round(end, 3),
+                    duration=round(end - t, 3),
+                )
+            )
             t = end
             i += 1
         return scenes
@@ -275,9 +286,7 @@ class CustomAdapter(BaseAnalysisAdapter):
             # 采 2-3 帧对
             gap = min(0.4, duration / 3)
             sample_times = [
-                start + duration * p
-                for p in (0.25, 0.5, 0.75)
-                if start + duration * p + gap <= end
+                start + duration * p for p in (0.25, 0.5, 0.75) if start + duration * p + gap <= end
             ]
             if not sample_times:
                 sample_times = [start + 0.1]
@@ -303,9 +312,16 @@ class CustomAdapter(BaseAnalysisAdapter):
                 gray_b = cv2.cvtColor(frame_b, cv2.COLOR_BGR2GRAY)
 
                 flow = cv2.calcOpticalFlowFarneback(
-                    gray_a, gray_b, None,
-                    pyr_scale=0.5, levels=3, winsize=15,
-                    iterations=3, poly_n=5, poly_sigma=1.2, flags=0,
+                    gray_a,
+                    gray_b,
+                    None,
+                    pyr_scale=0.5,
+                    levels=3,
+                    winsize=15,
+                    iterations=3,
+                    poly_n=5,
+                    poly_sigma=1.2,
+                    flags=0,
                 )
 
                 mag = np.sqrt(flow[..., 0] ** 2 + flow[..., 1] ** 2)
@@ -327,10 +343,12 @@ class CustomAdapter(BaseAnalysisAdapter):
             else:
                 motion_type = "motion_clip"
 
-            results.append({
-                "motion_type": motion_type,
-                "flow_variance": round(avg_variance, 3),
-            })
+            results.append(
+                {
+                    "motion_type": motion_type,
+                    "flow_variance": round(avg_variance, 3),
+                }
+            )
 
         self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         return results
@@ -376,9 +394,7 @@ class CustomAdapter(BaseAnalysisAdapter):
         if self.output_dir:
             kf_dir = self.output_dir
         else:
-            kf_dir = os.path.join(
-                tempfile.mkdtemp(prefix="vt_keyframes_"), "keyframes"
-            )
+            kf_dir = os.path.join(tempfile.mkdtemp(prefix="vt_keyframes_"), "keyframes")
         os.makedirs(kf_dir, exist_ok=True)
 
         keyframes = []
@@ -407,14 +423,16 @@ class CustomAdapter(BaseAnalysisAdapter):
                     scene_idx = j
                     break
 
-            keyframes.append(KeyframeBrief(
-                timestamp=round(ts, 3),
-                scene_index=scene_idx,
-                path=file_path,
-                brightness=round(brightness, 2),
-                contrast=round(contrast, 2),
-                dominant_colors=colors,
-            ))
+            keyframes.append(
+                KeyframeBrief(
+                    timestamp=round(ts, 3),
+                    scene_index=scene_idx,
+                    path=file_path,
+                    brightness=round(brightness, 2),
+                    contrast=round(contrast, 2),
+                    dominant_colors=colors,
+                )
+            )
 
         self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         return keyframes
@@ -447,9 +465,6 @@ class CustomAdapter(BaseAnalysisAdapter):
                 .overwrite_output()
                 .run(capture_stdout=True, capture_stderr=True)
             )
-
-            # 解析输出获取简单的能量指标
-            output = err.decode("utf-8", errors="replace")
 
             # 简化为使用 astats 获取 RMS 能量
             _, err2 = (

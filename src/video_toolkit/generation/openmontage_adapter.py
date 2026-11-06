@@ -9,6 +9,7 @@
     - OpenMontage 项目已安装到本地
     - 配置了至少一个视频生成 provider 的 API Key
 """
+
 from __future__ import annotations
 
 import os
@@ -16,7 +17,6 @@ import shutil
 import subprocess
 import tempfile
 import time
-from typing import List, Optional, Tuple
 
 from rich.console import Console
 
@@ -44,22 +44,23 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
         self,
         video_path: str,
         brief: AnalysisBrief,
-        work_dir: Optional[str] = None,
+        work_dir: str | None = None,
     ):
         super().__init__(video_path=video_path, brief=brief)
         self.work_dir = work_dir or tempfile.mkdtemp(prefix="vt_om_regen_")
-        self._openmontage_path: Optional[str] = None
+        self._openmontage_path: str | None = None
         self._video_selector = None
 
     # ── 环境验证 ──
 
-    def validate_environment(self) -> Tuple[bool, str]:
+    def validate_environment(self) -> tuple[bool, str]:
         """验证 OpenMontage 环境是否可用."""
         try:
             # 检查 OpenMontage 路径
             from video_toolkit.analysis.openmontage_adapter import (
                 _find_openmontage_path,
             )
+
             self._openmontage_path = _find_openmontage_path()
             if not self._openmontage_path:
                 return False, (
@@ -69,7 +70,8 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
 
             # 检查 OpenMontage 核心模块是否可导入
             try:
-                from OpenMontage.lib.shot_prompt_builder import build_batch_prompts
+                # 仅用于模块可用性检查（不直接使用）
+                from OpenMontage.lib.shot_prompt_builder import build_batch_prompts  # noqa: F401
                 from OpenMontage.tools.video.video_selector import VideoSelector
             except ImportError as e:
                 return False, f"OpenMontage 模块导入失败: {e}"
@@ -92,7 +94,8 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
 
             # 检查视频合成器是否可用
             try:
-                from OpenMontage.tools.video.video_compose import VideoCompose
+                # 仅用于模块可用性检查（不直接使用）
+                from OpenMontage.tools.video.video_compose import VideoCompose  # noqa: F401
             except ImportError as e:
                 return False, f"视频合成模块导入失败: {e}"
 
@@ -134,7 +137,6 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
             # 3. 初始化 OpenMontage 组件
             from OpenMontage.lib.shot_prompt_builder import build_batch_prompts
             from OpenMontage.tools.video.video_selector import VideoSelector
-            from OpenMontage.tools.video.video_compose import VideoCompose
 
             self._video_selector = VideoSelector()
             prompt_style_context = self._build_style_context()
@@ -149,20 +151,15 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
 
             # 6. 收集成功的片段
             segments = [
-                t.output_path for t in tasks
-                if t.status == "done" and os.path.isfile(t.output_path)
+                t.output_path for t in tasks if t.status == "done" and os.path.isfile(t.output_path)
             ]
             result.generated_segments = segments
-            result.failed_scenes = [
-                t.scene_index for t in tasks if t.status == "failed"
-            ]
+            result.failed_scenes = [t.scene_index for t in tasks if t.status == "failed"]
 
             if not segments:
                 raise RuntimeError("所有场景的 AI 生成均失败")
 
-            console.print(
-                f"[green]成功生成 {len(segments)}/{len(scenes)} 个片段[/green]"
-            )
+            console.print(f"[green]成功生成 {len(segments)}/{len(scenes)} 个片段[/green]")
 
             # 7. 生成 TTS 旁白（可选）
             if config.audio_mode == "tts_narration":
@@ -324,9 +321,9 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
         prompt_tasks: list[dict],
         scenes: list,
         config: RegenerationConfig,
-    ) -> List[SceneGenerationTask]:
+    ) -> list[SceneGenerationTask]:
         """为所有场景生成 AI 视频片段."""
-        tasks: List[SceneGenerationTask] = []
+        tasks: list[SceneGenerationTask] = []
 
         for i, (prompt_task, scene) in enumerate(zip(prompt_tasks, scenes)):
             task = SceneGenerationTask(
@@ -359,9 +356,7 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
         """生成单个视频片段."""
         task.status = "generating"
 
-        output_path = os.path.join(
-            self.work_dir, f"gen_{task.scene_index:04d}.mp4"
-        )
+        output_path = os.path.join(self.work_dir, f"gen_{task.scene_index:04d}.mp4")
         task.output_path = output_path
 
         # 调用 video_selector 选择最优 provider 生成视频
@@ -414,6 +409,7 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
         if url_or_path.startswith(("http://", "https://")):
             try:
                 import urllib.request
+
                 os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
                 urllib.request.urlretrieve(url_or_path, dest)
                 return os.path.isfile(dest) and os.path.getsize(dest) > 1000
@@ -446,15 +442,23 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
             ffmpeg_path,
             *FFMPEG_GLOBAL_ARGS,
             "-y",
-            "-i", clip_path,
-            "-vf", f"scale={config.output_width}:{config.output_height}",
-            "-r", str(config.output_fps),
-            "-c:v", "libx264",
-            "-preset", "medium",
-            "-crf", crf,
-            "-pix_fmt", "yuv420p",
+            "-i",
+            clip_path,
+            "-vf",
+            f"scale={config.output_width}:{config.output_height}",
+            "-r",
+            str(config.output_fps),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            crf,
+            "-pix_fmt",
+            "yuv420p",
             "-an",  # 移除音频，后续统一处理
-            "-movflags", "+faststart",
+            "-movflags",
+            "+faststart",
             tmp_path,
         ]
 
@@ -508,7 +512,7 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
 
     def _compose_final_video(
         self,
-        segments: List[str],
+        segments: list[str],
         config: RegenerationConfig,
         result: RegenerationResult,
     ):
@@ -560,18 +564,26 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
             ffmpeg_path,
             *FFMPEG_GLOBAL_ARGS,
             "-y",
-            "-i", video_path,
-            "-i", audio_path,
+            "-i",
+            video_path,
+            "-i",
+            audio_path,
             "-filter_complex",
-            f"[0:a]volume=0.8[v0];[1:a]volume=1.0[v1];"
-            f"[v0][v1]amix=inputs=2:duration=first:dropout_transition=2[a]",
-            "-map", "0:v",
-            "-map", "[a]",
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-b:a", "192k",
+            "[0:a]volume=0.8[v0];[1:a]volume=1.0[v1];"
+            "[v0][v1]amix=inputs=2:duration=first:dropout_transition=2[a]",
+            "-map",
+            "0:v",
+            "-map",
+            "[a]",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
             "-shortest",
-            "-movflags", "+faststart",
+            "-movflags",
+            "+faststart",
             tmp_output,
         ]
 
@@ -584,14 +596,14 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
 
     # ── 辅助 ──
 
-    def _save_prompts(self, tasks: List[SceneGenerationTask], config: RegenerationConfig):
+    def _save_prompts(self, tasks: list[SceneGenerationTask], config: RegenerationConfig):
         """保存生成 prompt 到文本文件."""
         prompt_file = os.path.join(
             os.path.dirname(config.output_path) or ".",
             "generation_prompts.txt",
         )
         with open(prompt_file, "w", encoding="utf-8") as f:
-            f.write(f"# OpenMontage Video Regeneration Prompts\n")
+            f.write("# OpenMontage Video Regeneration Prompts\n")
             f.write(f"# Source: {self.video_path}\n")
             f.write(f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"# Total scenes: {len(tasks)}\n\n")

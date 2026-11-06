@@ -1,6 +1,6 @@
 """ElevenLabs 生成器 - 高质量 TTS."""
+
 import time
-from typing import List
 
 import requests
 
@@ -22,7 +22,7 @@ class ElevenLabsGenerator(BaseAIGenerator):
         return "elevenlabs"
 
     @property
-    def supported_types(self) -> List[GenerationType]:
+    def supported_types(self) -> list[GenerationType]:
         return [GenerationType.AUDIO]
 
     def generate(self, request: GenerationRequest) -> GenerationResult:

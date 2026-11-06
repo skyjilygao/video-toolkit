@@ -1,8 +1,11 @@
 """通用OpenAI兼容接口AI生成器，适配所有符合OpenAI API协议的Provider."""
+
 import os
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
+
+import requests
 
 from video_toolkit.ai.base import (
     BaseAIGenerator,
@@ -20,7 +23,7 @@ class OpenAICompatibleGenerator(BaseAIGenerator):
         api_key: str,
         base_url: str,
         default_model_id: str = "",
-        supported_types: Optional[List[GenerationType]] = None,
+        supported_types: Optional[list[GenerationType]] = None,
         **kwargs,
     ):
         super().__init__(api_key, **kwargs)
@@ -33,19 +36,11 @@ class OpenAICompatibleGenerator(BaseAIGenerator):
         return "openai-compatible"
 
     @property
-    def supported_types(self) -> List[GenerationType]:
+    def supported_types(self) -> list[GenerationType]:
         return self._supported_types
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         """执行生成请求，根据类型调用对应的接口."""
-        try:
-            import requests
-        except ImportError:
-            return GenerationResult(
-                success=False,
-                message="需要安装requests库: pip install requests",
-            )
-
         try:
             if request.generation_type == GenerationType.VIDEO:
                 return self._generate_video(request)

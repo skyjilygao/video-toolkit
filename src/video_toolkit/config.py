@@ -1,11 +1,14 @@
 """全局配置管理."""
+
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any, Optional
+
 import yaml
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
@@ -18,7 +21,9 @@ class Config:
     """全局配置."""
 
     # 默认测试视频目录
-    DEFAULT_TEST_VIDEO_DIR: str = r"\\192.168.88.121\.n8n-files\video_download\video\2026-11-02\20261102"
+    DEFAULT_TEST_VIDEO_DIR: str = (
+        r"\\192.168.88.121\.n8n-files\video_download\video\2026-11-02\20261102"
+    )
 
     def __init__(self):
         self._fal_key: Optional[str] = None
@@ -28,35 +33,35 @@ class Config:
         self._seedance_api_url: Optional[str] = None
         self._seedance_model_version: Optional[str] = None
         self._seedance_variant: Optional[str] = None
-        self._model_config: Optional[Dict[str, Any]] = None
+        self._model_config: Optional[dict[str, Any]] = None
 
     # ── 模型配置加载 ──
-    def load_model_config(self, config_path: Optional[str] = None) -> Dict[str, Any]:
+    def load_model_config(self, config_path: Optional[str] = None) -> dict[str, Any]:
         """加载模型配置文件.
-        
+
         Args:
             config_path: 配置文件路径，默认使用~/.video-toolkit/models.config.yml
-            
+
         Returns:
             模型配置字典
         """
         if self._model_config is not None:
             return self._model_config
-            
+
         path = Path(config_path) if config_path else DEFAULT_MODEL_CONFIG_PATH
-        
+
         if not path.exists():
             # 如果文件不存在，创建默认配置
             self._create_default_model_config(path)
-            
+
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 self._model_config = yaml.safe_load(f) or {}
             return self._model_config
         except Exception as e:
             print(f"[警告] 加载模型配置文件失败: {e}")
             return {}
-    
+
     def _create_default_model_config(self, path: Path) -> None:
         """创建默认模型配置文件."""
         default_content = """config:
@@ -157,62 +162,68 @@ class Config:
             print(f"[信息] 已创建默认模型配置文件: {path}")
         except Exception as e:
             print(f"[警告] 创建默认模型配置文件失败: {e}")
-    
-    def get_model_config(self) -> Dict[str, Any]:
+
+    def get_model_config(self) -> dict[str, Any]:
         """获取模型配置，如果未加载则自动加载."""
         if self._model_config is None:
             return self.load_model_config()
         return self._model_config
-    
-    def get_video_models(self) -> List[Dict[str, Any]]:
+
+    def get_video_models(self) -> list[dict[str, Any]]:
         """获取所有可用的视频生成模型."""
         config = self.get_model_config()
         models = []
         for provider_name, provider in config.get("config", {}).get("providers", {}).items():
             for model in provider.get("models", []):
                 if "text_to_video" in model.get("supports", []):
-                    models.append({
-                        "id": model["id"],
-                        "name": model["name"],
-                        "provider": provider_name,
-                        "providerDisplayName": provider["displayName"],
-                        **model
-                    })
+                    models.append(
+                        {
+                            "id": model["id"],
+                            "name": model["name"],
+                            "provider": provider_name,
+                            "providerDisplayName": provider["displayName"],
+                            **model,
+                        }
+                    )
         return models
-    
-    def get_image_models(self) -> List[Dict[str, Any]]:
+
+    def get_image_models(self) -> list[dict[str, Any]]:
         """获取所有可用的图片生成模型."""
         config = self.get_model_config()
         models = []
         for provider_name, provider in config.get("config", {}).get("providers", {}).items():
             for model in provider.get("models", []):
                 if "text_to_image" in model.get("supports", []):
-                    models.append({
-                        "id": model["id"],
-                        "name": model["name"],
-                        "provider": provider_name,
-                        "providerDisplayName": provider["displayName"],
-                        **model
-                    })
+                    models.append(
+                        {
+                            "id": model["id"],
+                            "name": model["name"],
+                            "provider": provider_name,
+                            "providerDisplayName": provider["displayName"],
+                            **model,
+                        }
+                    )
         return models
-    
-    def get_audio_models(self) -> List[Dict[str, Any]]:
+
+    def get_audio_models(self) -> list[dict[str, Any]]:
         """获取所有可用的音频生成模型."""
         config = self.get_model_config()
         models = []
         for provider_name, provider in config.get("config", {}).get("providers", {}).items():
             for model in provider.get("models", []):
                 if "text_to_speech" in model.get("supports", []):
-                    models.append({
-                        "id": model["id"],
-                        "name": model["name"],
-                        "provider": provider_name,
-                        "providerDisplayName": provider["displayName"],
-                        **model
-                    })
+                    models.append(
+                        {
+                            "id": model["id"],
+                            "name": model["name"],
+                            "provider": provider_name,
+                            "providerDisplayName": provider["displayName"],
+                            **model,
+                        }
+                    )
         return models
-    
-    def get_model_by_id(self, model_id: str) -> Optional[Dict[str, Any]]:
+
+    def get_model_by_id(self, model_id: str) -> Optional[dict[str, Any]]:
         """根据模型ID获取模型配置."""
         # 查找所有类型的模型
         all_models = self.get_video_models() + self.get_image_models() + self.get_audio_models()
@@ -220,12 +231,12 @@ class Config:
             if model["id"] == model_id:
                 return model
         return None
-    
-    def get_provider_config(self, provider_name: str) -> Optional[Dict[str, Any]]:
+
+    def get_provider_config(self, provider_name: str) -> Optional[dict[str, Any]]:
         """获取Provider配置."""
         config = self.get_model_config()
         return config.get("config", {}).get("providers", {}).get(provider_name)
-    
+
     def get_api_key_for_provider(self, provider_name: str) -> Optional[str]:
         """获取指定Provider的API Key（从环境变量读取）."""
         provider = self.get_provider_config(provider_name)

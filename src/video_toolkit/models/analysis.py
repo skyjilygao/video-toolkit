@@ -1,14 +1,16 @@
 """分析结果模型."""
+
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional, Literal
 from datetime import datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
 
 from video_toolkit.models.video import VideoMetadata
 
-
 # ─── 原有模型（保持向后兼容）───
+
 
 class SceneInfo(BaseModel):
     """场景信息."""
@@ -19,7 +21,7 @@ class SceneInfo(BaseModel):
     duration: float = 0.0
     start_frame: int = 0
     end_frame: int = 0
-    dominant_colors: List[str] = Field(default_factory=list)
+    dominant_colors: list[str] = Field(default_factory=list)
     brightness: float = 0.0
     motion_level: float = 0.0
     is_static: bool = False
@@ -35,19 +37,19 @@ class KeyframeInfo(BaseModel):
     height: int = 0
     brightness: float = 0.0
     contrast: float = 0.0
-    dominant_colors: List[str] = Field(default_factory=list)
+    dominant_colors: list[str] = Field(default_factory=list)
 
 
 class VideoAnalysisResult(BaseModel):
     """视频分析结果（基础版，向后兼容）."""
 
-    metadata: "VideoMetadata" = Field(default=None)
-    scenes: List[SceneInfo] = Field(default_factory=list)
-    keyframes: List[KeyframeInfo] = Field(default_factory=list)
+    metadata: VideoMetadata = Field(default=None)
+    scenes: list[SceneInfo] = Field(default_factory=list)
+    keyframes: list[KeyframeInfo] = Field(default_factory=list)
     avg_brightness: float = 0.0
     avg_motion: float = 0.0
-    color_palette: List[str] = Field(default_factory=list)
-    style_tags: List[str] = Field(default_factory=list)
+    color_palette: list[str] = Field(default_factory=list)
+    style_tags: list[str] = Field(default_factory=list)
     analyzed_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -60,8 +62,8 @@ class SegmentInfo(BaseModel):
     end_time: float = 0.0
     duration: float = 0.0
     output_path: str = ""
-    scene_info: Optional[SceneInfo] = None
-    tags: List[str] = Field(default_factory=list)
+    scene_info: SceneInfo | None = None
+    tags: list[str] = Field(default_factory=list)
     description: str = ""
 
 
@@ -70,12 +72,13 @@ class DecompositionResult(BaseModel):
 
     source_video: str = ""
     output_dir: str = ""
-    segments: List[SegmentInfo] = Field(default_factory=list)
+    segments: list[SegmentInfo] = Field(default_factory=list)
     total_segments: int = 0
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
 # ─── 适配器扩展模型（用于 AnalysisBrief）───
+
 
 class TranscriptSegment(BaseModel):
     """字幕片段."""
@@ -89,7 +92,7 @@ class TranscriptResult(BaseModel):
     """字幕/转录结果."""
 
     full_text: str = ""
-    segments: List[TranscriptSegment] = Field(default_factory=list)
+    segments: list[TranscriptSegment] = Field(default_factory=list)
     language: str = "unknown"
     word_count: int = 0
     has_transcript: bool = False
@@ -115,7 +118,7 @@ class AudioEnergyProfile(BaseModel):
 
     recommended_offset_seconds: float = 0.0
     has_energy_data: bool = False
-    energy_points: List[AudioEnergyPoint] = Field(default_factory=list)
+    energy_points: list[AudioEnergyPoint] = Field(default_factory=list)
     avg_energy: float = 0.0
     peak_energy: float = 0.0
     peak_timestamp: float = 0.0
@@ -142,7 +145,7 @@ class KeyframeBrief(BaseModel):
     description: str = ""
     brightness: float = 0.0
     contrast: float = 0.0
-    dominant_colors: List[str] = Field(default_factory=list)
+    dominant_colors: list[str] = Field(default_factory=list)
 
 
 class SceneBrief(BaseModel):
@@ -160,25 +163,29 @@ class SceneBrief(BaseModel):
     visual_type: str = "other"
 
     # ── 镜头语言字段（用于 AI 生成 prompt）──
-    camera_angle: str = "medium"                # 镜头景别: close_up / medium / wide 等
-    camera_movement: str = "static"             # 运镜方式: static / pan_left / dolly_in 等
-    lighting: str = "natural"                   # 光照类型: natural / low_key / golden_hour 等
-    depth_of_field: str = "medium"              # 景深: shallow / medium / deep
-    color_temperature: str = "neutral"          # 色温: cool / neutral / warm / mixed
-    texture_keywords: List[str] = Field(default_factory=list)  # 纹理/材质关键词
-    hero_moment: bool = False                   # 是否为高光时刻
+    camera_angle: str = "medium"  # 镜头景别: close_up / medium / wide 等
+    camera_movement: str = "static"  # 运镜方式: static / pan_left / dolly_in 等
+    lighting: str = "natural"  # 光照类型: natural / low_key / golden_hour 等
+    depth_of_field: str = "medium"  # 景深: shallow / medium / deep
+    color_temperature: str = "neutral"  # 色温: cool / neutral / warm / mixed
+    texture_keywords: list[str] = Field(default_factory=list)  # 纹理/材质关键词
+    hero_moment: bool = False  # 是否为高光时刻
 
 
 class StyleProfile(BaseModel):
     """风格特征画像."""
 
-    audio_energy_profile: Optional[AudioEnergyProfile] = None
-    narration_style: Optional[dict] = None
-    color_palette: dict = Field(default_factory=lambda: {
-        "primary_colors": [], "accent_colors": [], "overall_mood": "",
-    })
+    audio_energy_profile: AudioEnergyProfile | None = None
+    narration_style: dict | None = None
+    color_palette: dict = Field(
+        default_factory=lambda: {
+            "primary_colors": [],
+            "accent_colors": [],
+            "overall_mood": "",
+        }
+    )
     typography_observed: str = ""
-    transition_types: List[str] = Field(default_factory=list)
+    transition_types: list[str] = Field(default_factory=list)
     music_style: str = ""
     subtitle_style: str = ""
     production_quality: str = "prosumer"
@@ -202,22 +209,22 @@ class AnalysisBrief(BaseModel):
     transcript: TranscriptResult = Field(default_factory=TranscriptResult)
 
     # ③ 场景检测 + ④ 运动分类
-    scenes: List[SceneBrief] = Field(default_factory=list)
+    scenes: list[SceneBrief] = Field(default_factory=list)
 
     # ⑤ 关键帧
-    keyframes: List[KeyframeBrief] = Field(default_factory=list)
+    keyframes: list[KeyframeBrief] = Field(default_factory=list)
 
     # ⑥ 音频能量
-    audio_energy: Optional[AudioEnergyProfile] = None
+    audio_energy: AudioEnergyProfile | None = None
 
     # 节奏特征
-    pacing: Optional[PacingProfile] = None
+    pacing: PacingProfile | None = None
 
     # 综合风格画像
     style_profile: StyleProfile = Field(default_factory=StyleProfile)
 
     # 元数据
-    metadata: Optional["VideoMetadata"] = None
+    metadata: VideoMetadata | None = None
 
     # 适配信息
     adapter: str = "unknown"
@@ -226,6 +233,7 @@ class AnalysisBrief(BaseModel):
 
 
 # ─── 视频复制模型（方案 A: CustomDuplicator）───
+
 
 class DuplicationConfig(BaseModel):
     """视频复制配置 — 基于分析结果重组视频."""
@@ -237,7 +245,7 @@ class DuplicationConfig(BaseModel):
 
     # 场景选择
     scene_selection: str = "all"
-    scene_indices: List[int] = Field(default_factory=list)
+    scene_indices: list[int] = Field(default_factory=list)
     scene_count: int = 0
 
     # 转场
@@ -273,8 +281,8 @@ class DuplicationResult(BaseModel):
 
     source_video: str = ""
     config: DuplicationConfig = Field(default_factory=DuplicationConfig)
-    segments_used: List[int] = Field(default_factory=list)
-    segment_paths: List[str] = Field(default_factory=list)
+    segments_used: list[int] = Field(default_factory=list)
+    segment_paths: list[str] = Field(default_factory=list)
     output_path: str = ""
     duration: float = 0.0
     original_duration: float = 0.0
@@ -286,17 +294,18 @@ class DuplicationResult(BaseModel):
 
 # ─── 视频 AI 再生模型（全新生成）───
 
+
 class SceneGenerationTask(BaseModel):
     """单个场景的 AI 生成任务."""
 
     scene_index: int = 0
-    prompt: str = ""                        # 给 AI 的视频生成提示词
-    narration_text: str = ""                # 场景旁白文本
-    duration: float = 5.0                   # 期望生成的视频时长(秒)
-    output_path: str = ""                   # 生成后的文件路径
-    status: str = "pending"                 # pending / generating / done / failed
-    generation_type: str = "video"          # video / image_animation
-    retries: int = 0                        # 已重试次数
+    prompt: str = ""  # 给 AI 的视频生成提示词
+    narration_text: str = ""  # 场景旁白文本
+    duration: float = 5.0  # 期望生成的视频时长(秒)
+    output_path: str = ""  # 生成后的文件路径
+    status: str = "pending"  # pending / generating / done / failed
+    generation_type: str = "video"  # video / image_animation
+    retries: int = 0  # 已重试次数
 
 
 class RegenerationConfig(BaseModel):
@@ -308,16 +317,16 @@ class RegenerationConfig(BaseModel):
     output_fps: float = 24.0
 
     # 场景选择
-    scene_selection: str = "all"            # all / indices / first_n / custom
-    scene_indices: List[int] = Field(default_factory=list)
+    scene_selection: str = "all"  # all / indices / first_n / custom
+    scene_indices: list[int] = Field(default_factory=list)
     scene_count: int = 0
 
     # 生成策略
-    generation_mode: str = "video_first"    # video_first / image_animation
+    generation_mode: str = "video_first"  # video_first / image_animation
     # video_first: 优先 Kling 生成视频片段，失败降级到 FLUX 图片
     # image_animation: 用 FLUX 生成图片后做 Ken Burns 动态效果
-    preferred_provider: str = "auto"        # 优先使用的视频生成 provider，auto 表示自动选择
-    preferred_model_id: str = ""            # 优先使用的模型ID，为空则使用默认模型
+    preferred_provider: str = "auto"  # 优先使用的视频生成 provider，auto 表示自动选择
+    preferred_model_id: str = ""  # 优先使用的模型ID，为空则使用默认模型
 
     # 每个场景的最大生成时长（Kling 限制 5-10s）
     max_clip_duration: float = 5.0
@@ -327,11 +336,11 @@ class RegenerationConfig(BaseModel):
     transition_duration: float = 0.5
 
     # 音频
-    audio_mode: str = "tts_narration"      # tts_narration / original / mute / background_music
+    audio_mode: str = "tts_narration"  # tts_narration / original / mute / background_music
     music_path: str = ""
     music_volume: float = 0.2
-    tts_voice: str = "alloy"                # TTS 语音
-    tts_provider: str = "auto"              # auto / openai / elevenlabs
+    tts_voice: str = "alloy"  # TTS 语音
+    tts_provider: str = "auto"  # auto / openai / elevenlabs
 
     # 字幕
     burn_subtitles: bool = True
@@ -340,7 +349,7 @@ class RegenerationConfig(BaseModel):
     subtitle_color: str = "white"
 
     # 风格
-    style_prefix: str = ""                  # 自动从 style_profile 推导
+    style_prefix: str = ""  # 自动从 style_profile 推导
     style_suffix: str = "cinematic, high quality, professional"
 
     # 质量控制
@@ -351,10 +360,10 @@ class RegenerationConfig(BaseModel):
 
     # 中间文件保留
     keep_segments: bool = False
-    keep_prompts: bool = True               # 保存生成的 prompt 到 txt 文件
+    keep_prompts: bool = True  # 保存生成的 prompt 到 txt 文件
 
     # 扩展参数（传递给底层 Provider 的额外参数，如 aspect_ratio、resolution 等）
-    extra_params: Dict[str, Any] = Field(default_factory=dict)
+    extra_params: dict[str, Any] = Field(default_factory=dict)
 
 
 class RegenerationResult(BaseModel):
@@ -362,14 +371,14 @@ class RegenerationResult(BaseModel):
 
     source_video: str = ""
     config: RegenerationConfig = Field(default_factory=RegenerationConfig)
-    tasks: List[SceneGenerationTask] = Field(default_factory=list)
-    generated_segments: List[str] = Field(default_factory=list)   # 成功生成的视频片段
-    failed_scenes: List[int] = Field(default_factory=list)       # 生成失败的场景索引
-    tts_audio_path: str = ""                # TTS 旁白音频路径
+    tasks: list[SceneGenerationTask] = Field(default_factory=list)
+    generated_segments: list[str] = Field(default_factory=list)  # 成功生成的视频片段
+    failed_scenes: list[int] = Field(default_factory=list)  # 生成失败的场景索引
+    tts_audio_path: str = ""  # TTS 旁白音频路径
     output_path: str = ""
     duration: float = 0.0
     original_duration: float = 0.0
     success: bool = False
     message: str = ""
-    total_cost_estimate: float = 0.0        # 估算成本(USD)
+    total_cost_estimate: float = 0.0  # 估算成本(USD)
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())

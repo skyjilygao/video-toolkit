@@ -1,20 +1,20 @@
 """视频拆解器 - 场景切割、片段标记."""
+
 import json
 import os
 import subprocess
-import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from rich.console import Console
 
+from video_toolkit.core.analyzer import VideoAnalyzer
 from video_toolkit.models.analysis import (
+    DecompositionResult,
     SceneInfo,
     SegmentInfo,
-    DecompositionResult,
     VideoAnalysisResult,
 )
-from video_toolkit.core.analyzer import VideoAnalyzer
 
 console = Console()
 
@@ -29,9 +29,7 @@ class VideoDecomposer:
 
         if output_dir is None:
             base_name = Path(video_path).stem
-            self.output_dir = os.path.join(
-                os.path.dirname(video_path), f"{base_name}_decomposed"
-            )
+            self.output_dir = os.path.join(os.path.dirname(video_path), f"{base_name}_decomposed")
         else:
             self.output_dir = output_dir
 
@@ -60,9 +58,7 @@ class VideoDecomposer:
                 start_time=0,
                 end_time=analysis_result.metadata.duration,
                 duration=analysis_result.metadata.duration,
-                output_path=os.path.join(
-                    self.output_dir, "segments", "segment_0000.mp4"
-                ),
+                output_path=os.path.join(self.output_dir, "segments", "segment_0000.mp4"),
                 tags=["full_video"],
                 description="完整视频",
             )
@@ -76,9 +72,7 @@ class VideoDecomposer:
                     start_time=scene.start_time,
                     end_time=scene.end_time,
                     duration=scene.duration,
-                    output_path=os.path.join(
-                        self.output_dir, "segments", f"segment_{i:04d}.mp4"
-                    ),
+                    output_path=os.path.join(self.output_dir, "segments", f"segment_{i:04d}.mp4"),
                     scene_info=scene,
                     tags=self._generate_segment_tags(scene),
                     description=self._generate_segment_description(scene),
@@ -120,9 +114,7 @@ class VideoDecomposer:
                 start_time=start,
                 end_time=end,
                 duration=end - start,
-                output_path=os.path.join(
-                    self.output_dir, "segments", f"segment_{seg_id:04d}.mp4"
-                ),
+                output_path=os.path.join(self.output_dir, "segments", f"segment_{seg_id:04d}.mp4"),
                 tags=[f"interval_{interval_seconds}s"],
                 description=f"时间段: {start:.1f}s - {end:.1f}s",
             )
@@ -143,8 +135,8 @@ class VideoDecomposer:
 
     def decompose_custom(
         self,
-        time_ranges: List[tuple],
-        tags_list: Optional[List[List[str]]] = None,
+        time_ranges: list[tuple],
+        tags_list: Optional[list[list[str]]] = None,
         re_encode: bool = False,
     ) -> DecompositionResult:
         """按自定义时间范围拆解."""
@@ -158,9 +150,7 @@ class VideoDecomposer:
                 start_time=start,
                 end_time=end,
                 duration=end - start,
-                output_path=os.path.join(
-                    self.output_dir, "segments", f"segment_{i:04d}.mp4"
-                ),
+                output_path=os.path.join(self.output_dir, "segments", f"segment_{i:04d}.mp4"),
                 tags=tags,
                 description=f"自定义片段: {start:.1f}s - {end:.1f}s",
             )
@@ -183,20 +173,40 @@ class VideoDecomposer:
 
         if re_encode:
             cmd = [
-                "ffmpeg", "-y", "-ss", str(segment.start_time),
-                "-i", self.video_path,
-                "-t", str(segment.duration),
-                "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-                "-c:a", "aac", "-b:a", "128k",
+                "ffmpeg",
+                "-y",
+                "-ss",
+                str(segment.start_time),
+                "-i",
+                self.video_path,
+                "-t",
+                str(segment.duration),
+                "-c:v",
+                "libx264",
+                "-preset",
+                "fast",
+                "-crf",
+                "18",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
                 segment.output_path,
             ]
         else:
             cmd = [
-                "ffmpeg", "-y", "-ss", str(segment.start_time),
-                "-i", self.video_path,
-                "-t", str(segment.duration),
-                "-c", "copy",
-                "-avoid_negative_ts", "make_zero",
+                "ffmpeg",
+                "-y",
+                "-ss",
+                str(segment.start_time),
+                "-i",
+                self.video_path,
+                "-t",
+                str(segment.duration),
+                "-c",
+                "copy",
+                "-avoid_negative_ts",
+                "make_zero",
                 segment.output_path,
             ]
 
@@ -210,7 +220,7 @@ class VideoDecomposer:
         except subprocess.TimeoutExpired:
             console.print(f"[yellow]切割片段 {segment.segment_id} 超时[/yellow]")
 
-    def _generate_segment_tags(self, scene: SceneInfo) -> List[str]:
+    def _generate_segment_tags(self, scene: SceneInfo) -> list[str]:
         """为片段生成标签."""
         tags = []
 

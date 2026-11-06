@@ -12,6 +12,7 @@
     # 或者使用一键脚本:
     python run_e2e_test.py
 """
+
 from __future__ import annotations
 
 import json
@@ -25,18 +26,17 @@ import pytest
 # 使用绝对导入
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+from tests.fixtures.mock_ai_generator import (
+    MockImageGenerator,
+    MockSeedanceGenerator,
+)
 from tests.fixtures.mock_video import (
     generate_test_video,
     get_temp_dir,
 )
-from tests.fixtures.mock_ai_generator import (
-    MockSeedanceGenerator,
-    MockImageGenerator,
-    MockAudioGenerator,
-)
-
 
 # ── Fixtures ──
+
 
 @pytest.fixture(scope="module")
 def test_env():
@@ -108,7 +108,8 @@ def analysis_brief(test_env):
 
 # ── 阶段 1: 测试视频生成 ──
 
-class TestStage1_VideoGeneration:
+
+class TestStage1VideoGeneration:
     """验证测试视频正确生成."""
 
     def test_video_file_exists(self, test_env):
@@ -141,7 +142,8 @@ class TestStage1_VideoGeneration:
 
 # ── 阶段 2: 视频分析 ──
 
-class TestStage2_VideoAnalysis:
+
+class TestStage2VideoAnalysis:
     """验证分析模块正确工作."""
 
     def test_analysis_produces_brief(self, analysis_brief):
@@ -151,8 +153,9 @@ class TestStage2_VideoAnalysis:
 
     def test_analysis_detects_scenes(self, analysis_brief):
         """检测到场景."""
-        assert len(analysis_brief.scenes) >= 3, \
-            f"期望至少3个场景，实际: {len(analysis.brief.scenes)}"
+        assert (
+            len(analysis_brief.scenes) >= 3
+        ), f"期望至少3个场景，实际: {len(analysis_brief.scenes)}"
         print(f"  Detected {len(analysis_brief.scenes)} scenes")
 
     def test_scenes_have_valid_time_ranges(self, analysis_brief):
@@ -167,7 +170,14 @@ class TestStage2_VideoAnalysis:
         for scene in analysis_brief.scenes:
             # 这些字段应该有默认值或推导值
             assert scene.camera_angle in ("close_up", "medium", "wide")
-            assert scene.camera_movement in ("static", "pan_left", "dolly_in", "pan_right", "tilt_up", "tilt_down")
+            assert scene.camera_movement in (
+                "static",
+                "pan_left",
+                "dolly_in",
+                "pan_right",
+                "tilt_up",
+                "tilt_down",
+            )
 
     def test_analysis_keyframes_extracted(self, analysis_brief):
         """关键帧提取."""
@@ -191,7 +201,7 @@ class TestStage2_VideoAnalysis:
         """JSON 反序列化验证."""
         from video_toolkit.models.analysis import AnalysisBrief
 
-        with open(test_env["analysis_json"], "r", encoding="utf-8") as f:
+        with open(test_env["analysis_json"], encoding="utf-8") as f:
             data = json.load(f)
 
         brief = AnalysisBrief.model_validate(data)
@@ -200,13 +210,14 @@ class TestStage2_VideoAnalysis:
 
 # ── 阶段 3: 视频拆解 ──
 
-class TestStage3_VideoDecomposition:
+
+class TestStage3VideoDecomposition:
     """验证拆解模块正确工作."""
 
     def test_decomposition_creates_segments(self, analysis_brief, test_env):
         """拆解产生片段文件."""
         from video_toolkit.decomposition.decomposer import VideoDecomposer
-        from video_toolkit.models.analysis import VideoAnalysisResult, SceneInfo
+        from video_toolkit.models.analysis import SceneInfo, VideoAnalysisResult
 
         # 构建 VideoAnalysisResult（兼容 decomposer 的接口）
         video_analysis = VideoAnalysisResult(
@@ -228,6 +239,7 @@ class TestStage3_VideoDecomposition:
         )
         # 设置 metadata
         from video_toolkit.models.video import VideoMetadata
+
         video_analysis.metadata = VideoMetadata(
             file_path=test_env["video_path"],
             duration=analysis_brief.duration_seconds,
@@ -257,7 +269,7 @@ class TestStage3_VideoDecomposition:
         index_path = os.path.join(decomp_dir, "decomposition_index.json")
         assert os.path.isfile(index_path)
 
-        with open(index_path, "r", encoding="utf-8") as f:
+        with open(index_path, encoding="utf-8") as f:
             index = json.load(f)
         assert index["total_segments"] > 0
         assert len(index["segments"]) > 0
@@ -265,7 +277,8 @@ class TestStage3_VideoDecomposition:
 
 # ── 阶段 4: AI Mock 生成 ──
 
-class TestStage4_MockAIGeneration:
+
+class TestStage4MockAIGeneration:
     """验证 Mock AI 生成器正确工作."""
 
     def test_mock_seedance_video_generation(self):
@@ -288,6 +301,7 @@ class TestStage4_MockAIGeneration:
 
         # 验证生成的文件是有效视频
         from video_toolkit.utils.ffprobe_utils import get_video_info
+
         info = get_video_info(result.output_path)
         assert info["width"] == 640
         assert info["height"] == 360
@@ -333,13 +347,14 @@ class TestStage4_MockAIGeneration:
 
 # ── 阶段 5: 完整再生流水线 ──
 
-class TestStage5_FullRegenerationPipeline:
+
+class TestStage5FullRegenerationPipeline:
     """端到端再生流水线测试."""
 
     def test_regeneration_with_mock_ai(self, test_env, analysis_brief, ai_manager_with_mock):
         """使用 Mock AI 执行完整的视频再生."""
-        from video_toolkit.models.analysis import RegenerationConfig
         from video_toolkit.generation.custom_adapter import CustomGenerationAdapter
+        from video_toolkit.models.analysis import RegenerationConfig
 
         # 1. 构建配置
         config = RegenerationConfig(
@@ -382,8 +397,7 @@ class TestStage5_FullRegenerationPipeline:
             print(f"  Tasks: {[(t.scene_index, t.status, t.prompt[:80]) for t in result.tasks]}")
 
         assert result.success is True, f"再生失败: {result.message}"
-        assert os.path.isfile(test_env["regenerated_video"]), \
-            "输出视频文件不存在"
+        assert os.path.isfile(test_env["regenerated_video"]), "输出视频文件不存在"
 
     def test_output_video_is_valid(self, test_env):
         """输出视频是有效 MP4."""
@@ -402,15 +416,14 @@ class TestStage5_FullRegenerationPipeline:
 
         info = get_video_info(test_env["regenerated_video"])
         # 3个场景，每个约3秒 + 转场重叠
-        assert info["duration"] >= 5.0, \
-            f"视频太短 ({info['duration']:.1f}s)，可能只生成了1个场景"
+        assert info["duration"] >= 5.0, f"视频太短 ({info['duration']:.1f}s)，可能只生成了1个场景"
 
     def test_prompts_saved(self, test_env):
         """Prompts 文本文件保存."""
         prompts_file = os.path.join(test_env["output_dir"], "generation_prompts.txt")
         assert os.path.isfile(prompts_file), "prompts 文件未生成"
 
-        with open(prompts_file, "r", encoding="utf-8") as f:
+        with open(prompts_file, encoding="utf-8") as f:
             content = f.read()
         assert "Scene" in content
         assert "Mock" in content or "mock" in content.lower() or len(content) > 50
@@ -418,7 +431,8 @@ class TestStage5_FullRegenerationPipeline:
 
 # ── 阶段 6: 模型配置驱动测试 ──
 
-class TestStage6_ConfigDriven:
+
+class TestStage6ConfigDriven:
     """验证配置驱动的 Provider 注册."""
 
     def test_model_config_loading(self):
@@ -453,19 +467,22 @@ class TestStage6_ConfigDriven:
         model_config = config.get_model_config()
         providers = model_config.get("config", {}).get("providers", {})
 
-        for provider_name, provider_conf in providers.items():
+        for _, provider_conf in providers.items():
             for model in provider_conf.get("models", []):
                 model_id = model["id"]
                 found = config.get_model_by_id(model_id)
                 # 即使没有 API key，配置也应可被查询
-                if any(op in model.get("supports", []) for op in
-                       ["text_to_video", "text_to_image", "text_to_speech"]):
+                if any(
+                    op in model.get("supports", [])
+                    for op in ["text_to_video", "text_to_image", "text_to_speech"]
+                ):
                     assert found is not None, f"模型 {model_id} 应该能被查到"
 
 
 # ── 阶段 7: 错误处理和边界条件 ──
 
-class TestStage7_EdgeCases:
+
+class TestStage7EdgeCases:
     """边界条件和错误处理."""
 
     def test_empty_scenes_handling(self):
@@ -495,7 +512,9 @@ class TestStage7_EdgeCases:
         """单场景再生."""
         from video_toolkit.generation.custom_adapter import CustomGenerationAdapter
         from video_toolkit.models.analysis import (
-            AnalysisBrief, RegenerationConfig, SceneBrief,
+            AnalysisBrief,
+            RegenerationConfig,
+            SceneBrief,
         )
 
         # 创建只有1个场景的 brief
@@ -542,7 +561,8 @@ class TestStage7_EdgeCases:
         from video_toolkit.models.analysis import RegenerationConfig
 
         adapter = CustomGenerationAdapter(
-            test_env["video_path"], analysis_brief,
+            test_env["video_path"],
+            analysis_brief,
             work_dir=os.path.join(test_env["output_dir"], "dry_run_work"),
         )
 
@@ -576,8 +596,9 @@ class TestStage7_EdgeCases:
 
 # ── 便捷的全流程运行入口 ──
 
+
 def test_full_pipeline_summary(test_env, analysis_brief):
-    """打印全流程测试摘要.\n\n    此测试总是通过，用于汇总之前所有阶段的测试结果.\n    """
+    """打印全流程测试摘要.\n\n    此测试总是通过，用于汇总之前所有阶段的测试结果.\n"""
     print("\n" + "=" * 70)
     print("  端到端全流程测试摘要")
     print("=" * 70)
@@ -590,11 +611,12 @@ def test_full_pipeline_summary(test_env, analysis_brief):
 
     if os.path.isfile(test_env["regenerated_video"]):
         from video_toolkit.utils.ffprobe_utils import get_video_info
+
         info = get_video_info(test_env["regenerated_video"])
         print(f"  输出视频时长: {info['duration']:.1f}s")
         print(f"  输出视频分辨率: {info['width']}x{info['height']}")
     else:
-        print(f"  输出视频: 未生成（之前的阶段可能失败）")
+        print("  输出视频: 未生成（之前的阶段可能失败）")
 
     print("=" * 70)
     assert True  # 这个测试总是通过

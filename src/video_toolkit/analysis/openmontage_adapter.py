@@ -10,15 +10,14 @@
 环境变量:
     OPENMONTAGE_PATH: OpenMontage 仓库的本地路径（如未设置，自动探测或安装）
 """
+
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 
@@ -58,6 +57,7 @@ def _find_openmontage_path() -> str | None:
     # 3. 尝试从 Python 路径导入
     try:
         import tools.analysis.video_analyzer as _  # noqa: F401
+
         return str(sibling_om)
     except ImportError:
         pass
@@ -93,7 +93,7 @@ def _install_openmontage(target_dir: Path | None = None) -> str | None:
         target_dir = _get_sibling_openmontage_dir()
 
     target_dir = Path(target_dir)
-    console.print(f"[bold cyan]OpenMontage 未检测到，开始自动安装...[/bold cyan]")
+    console.print("[bold cyan]OpenMontage 未检测到，开始自动安装...[/bold cyan]")
     console.print(f"[dim]安装路径: {target_dir}[/dim]")
 
     try:
@@ -103,6 +103,7 @@ def _install_openmontage(target_dir: Path | None = None) -> str | None:
             console.print(f"[yellow]目录已存在但内容不完整: {target_dir}[/yellow]")
             console.print("[dim]尝试移除并重新 clone...[/dim]")
             import shutil
+
             shutil.rmtree(target_dir, ignore_errors=True)
 
         result = subprocess.run(
@@ -159,7 +160,7 @@ def _install_openmontage_deps(om_dir: Path) -> bool:
     # 检查 OpenMontage 是否有 requirements.txt
     req_file = om_dir / "requirements.txt"
     if req_file.exists():
-        console.print(f"  [dim]发现 requirements.txt，安装中...[/dim]")
+        console.print("  [dim]发现 requirements.txt，安装中...[/dim]")
         result = subprocess.run(
             pip_cmd + ["-r", str(req_file)],
             capture_output=True,
@@ -185,7 +186,7 @@ def _verify_openmontage(om_dir: Path) -> bool:
     """验证 OpenMontage 安装是否可用."""
     analysis_dir = om_dir / "tools" / "analysis"
     if not analysis_dir.exists():
-        console.print(f"[red]  ✗ 缺少 tools/analysis 目录[/red]")
+        console.print("[red]  ✗ 缺少 tools/analysis 目录[/red]")
         return False
 
     # 检查关键文件是否存在
@@ -203,6 +204,7 @@ def _verify_openmontage(om_dir: Path) -> bool:
 
         # 尝试导入核心模块
         from tools.analysis.scene_detect import SceneDetect  # noqa: F401
+
         return True
     except ImportError as e:
         console.print(f"[yellow]  ! 导入验证警告: {e}[/yellow]")
@@ -226,11 +228,13 @@ def _ensure_openmontage_installed() -> str | None:
 
 # ── URL 判断工具 ──
 
+
 def _is_url(source: str) -> bool:
     return source.startswith(("http://", "https://", "www."))
 
 
 # ── OpenMontage 适配器 ──
+
 
 @register_adapter("openmontage")
 class OpenMontageAdapter(BaseAnalysisAdapter):
@@ -248,7 +252,7 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
 
     name = "openmontage"
 
-    def __init__(self, video_path: str, output_dir: Optional[str] = None):
+    def __init__(self, video_path: str, output_dir: str | None = None):
         super().__init__(video_path, output_dir)
         self._openmontage_path: str | None = None
         # 使用独立工作目录，避免中间文件污染 output_dir
@@ -268,9 +272,7 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
             self._openmontage_path = _ensure_openmontage_installed()
 
         if not self._openmontage_path:
-            console.print(
-                "[yellow]未找到 OpenMontage，请设置 OPENMONTAGE_PATH 环境变量[/yellow]"
-            )
+            console.print("[yellow]未找到 OpenMontage，请设置 OPENMONTAGE_PATH 环境变量[/yellow]")
             console.print(
                 "[dim]或手动安装: git clone https://github.com/calesthio/OpenMontage.git[/dim]"
             )
@@ -308,11 +310,13 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
                 return TranscriptResult(has_transcript=False)
 
             fetcher = TranscriptFetcher()
-            result = fetcher.execute({
-                "url_or_video_id": self.video_path,
-                "languages": ["en"],
-                "include_auto_generated": True,
-            })
+            result = fetcher.execute(
+                {
+                    "url_or_video_id": self.video_path,
+                    "languages": ["en"],
+                    "include_auto_generated": True,
+                }
+            )
 
             if result.success:
                 data = result.data
@@ -345,11 +349,13 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
                 return self._fallback_transcribe()
 
             transcriber = Transcriber()
-            result = transcriber.execute({
-                "input_path": self.video_path,
-                "model_size": "base",
-                "output_dir": self._base_dir,
-            })
+            result = transcriber.execute(
+                {
+                    "input_path": self.video_path,
+                    "model_size": "base",
+                    "output_dir": self._base_dir,
+                }
+            )
 
             if result.success:
                 segments_data = result.data.get("segments", [])
@@ -379,6 +385,7 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
         """降级：使用 CustomAdapter 的转录."""
         try:
             from video_toolkit.analysis.custom_adapter import CustomAdapter
+
             fallback = CustomAdapter(self.video_path, self._base_dir)
             return fallback.transcribe()
         except Exception as e:
@@ -396,22 +403,26 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
                 return self._fallback_detect_scenes()
 
             detector = SceneDetect()
-            result = detector.execute({
-                "input_path": self.video_path,
-                "method": "content",
-                "min_scene_length_seconds": 0.5,
-                "output_path": os.path.join(self._base_dir, "scenes.json"),
-            })
+            result = detector.execute(
+                {
+                    "input_path": self.video_path,
+                    "method": "content",
+                    "min_scene_length_seconds": 0.5,
+                    "output_path": os.path.join(self._base_dir, "scenes.json"),
+                }
+            )
 
             if result.success:
                 scenes = []
                 for s in result.data.get("scenes", []):
-                    scenes.append(SceneBrief(
-                        scene_index=s.get("index", 0),
-                        start_time=s.get("start_seconds", 0),
-                        end_time=s.get("end_seconds", 0),
-                        duration=s.get("duration_seconds", 0),
-                    ))
+                    scenes.append(
+                        SceneBrief(
+                            scene_index=s.get("index", 0),
+                            start_time=s.get("start_seconds", 0),
+                            end_time=s.get("end_seconds", 0),
+                            duration=s.get("duration_seconds", 0),
+                        )
+                    )
                 return scenes
 
         except Exception as e:
@@ -423,6 +434,7 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
         """降级场景检测 — 使用 CustomAdapter 的 FFmpeg/场景检测逻辑."""
         try:
             from video_toolkit.analysis.custom_adapter import CustomAdapter
+
             fallback = CustomAdapter(self.video_path, self._base_dir)
             return fallback.detect_scenes(depth="standard")
         except Exception as e:
@@ -440,14 +452,17 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
                 return super().classify_motion(scenes)
 
             analyzer = VideoAnalyzer.__new__(VideoAnalyzer)
-            results = analyzer._classify_scene_motion(self.video_path, [
-                {
-                    "start_seconds": s.start_time,
-                    "end_seconds": s.end_time,
-                    "index": s.scene_index,
-                }
-                for s in scenes
-            ])
+            results = analyzer._classify_scene_motion(
+                self.video_path,
+                [
+                    {
+                        "start_seconds": s.start_time,
+                        "end_seconds": s.end_time,
+                        "index": s.scene_index,
+                    }
+                    for s in scenes
+                ],
+            )
             return results
 
         except Exception as e:
@@ -456,6 +471,7 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
         # 使用 CustomAdapter 的降级方案（复用光流逻辑）
         try:
             from video_toolkit.analysis.custom_adapter import CustomAdapter
+
             fallback = CustomAdapter(self.video_path, self._base_dir)
             return fallback.classify_motion(scenes)
         except Exception:
@@ -492,14 +508,16 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
             )
 
             sampler = FrameSampler()
-            result = sampler.execute({
-                "input_path": self.video_path,
-                "strategy": "timestamps",
-                "timestamps": timestamps,
-                "output_dir": self._keyframe_dir,
-                "format": "jpg",
-                "quality": 2,
-            })
+            result = sampler.execute(
+                {
+                    "input_path": self.video_path,
+                    "strategy": "timestamps",
+                    "timestamps": timestamps,
+                    "output_dir": self._keyframe_dir,
+                    "format": "jpg",
+                    "quality": 2,
+                }
+            )
 
             if result.success:
                 keyframes = []
@@ -511,11 +529,13 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
                             scene_idx = j
                             break
 
-                    keyframes.append(KeyframeBrief(
-                        timestamp=round(ts, 3),
-                        scene_index=scene_idx,
-                        path=frame["path"],
-                    ))
+                    keyframes.append(
+                        KeyframeBrief(
+                            timestamp=round(ts, 3),
+                            scene_index=scene_idx,
+                            path=frame["path"],
+                        )
+                    )
                 return keyframes
 
         except Exception as e:
@@ -532,6 +552,7 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
         """降级：使用 CustomAdapter 的关键帧逻辑."""
         try:
             from video_toolkit.analysis.custom_adapter import CustomAdapter
+
             fallback = CustomAdapter(self.video_path, self._base_dir)
             return fallback.extract_keyframes(scenes, max_frames, depth)
         except Exception:
@@ -548,16 +569,16 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
                 return None
 
             energy = AudioEnergy()
-            result = energy.execute({
-                "input_path": self.video_path,
-                "video_duration_seconds": 0,
-            })
+            result = energy.execute(
+                {
+                    "input_path": self.video_path,
+                    "video_duration_seconds": 0,
+                }
+            )
 
             if result.success:
                 return AudioEnergyProfile(
-                    recommended_offset_seconds=result.data.get(
-                        "recommended_offset_seconds", 0
-                    ),
+                    recommended_offset_seconds=result.data.get("recommended_offset_seconds", 0),
                     has_energy_data=True,
                 )
         except Exception as e:

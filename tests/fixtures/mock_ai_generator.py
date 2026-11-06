@@ -11,26 +11,26 @@
     - MockAudioGenerator.generate() 返回本地音频文件
     - MockSeedanceGenerator 模拟 Seedance provider 的行为
 """
+
 from __future__ import annotations
 
 import os
 import subprocess
 import tempfile
-from typing import List
 
+from tests.fixtures.mock_video import (
+    generate_solid_color_video,
+    generate_test_image,
+)
 from video_toolkit.ai.base import (
     BaseAIGenerator,
     GenerationRequest,
     GenerationResult,
     GenerationType,
 )
-from tests.fixtures.mock_video import (
-    generate_solid_color_video,
-    generate_test_image,
-)
-
 
 # ── Mock 视频生成器 ──
+
 
 class MockVideoGenerator(BaseAIGenerator):
     """Mock 视频生成器 — 返回本地合成的短视频."""
@@ -51,7 +51,7 @@ class MockVideoGenerator(BaseAIGenerator):
         return "mock_video"
 
     @property
-    def supported_types(self) -> List[GenerationType]:
+    def supported_types(self) -> list[GenerationType]:
         return [GenerationType.VIDEO]
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
@@ -113,6 +113,7 @@ class MockVideoGenerator(BaseAIGenerator):
 
 # ── Mock 图片生成器 ──
 
+
 class MockImageGenerator(BaseAIGenerator):
     """Mock 图片生成器 — 返回本地图像文件."""
 
@@ -130,7 +131,7 @@ class MockImageGenerator(BaseAIGenerator):
         return "mock_image"
 
     @property
-    def supported_types(self) -> List[GenerationType]:
+    def supported_types(self) -> list[GenerationType]:
         return [GenerationType.IMAGE]
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
@@ -168,6 +169,7 @@ class MockImageGenerator(BaseAIGenerator):
 
 # ── Mock 音频生成器 ──
 
+
 class MockAudioGenerator(BaseAIGenerator):
     """Mock 音频生成器 — 返回本地合成的音频文件."""
 
@@ -185,7 +187,7 @@ class MockAudioGenerator(BaseAIGenerator):
         return "mock_audio"
 
     @property
-    def supported_types(self) -> List[GenerationType]:
+    def supported_types(self) -> list[GenerationType]:
         return [GenerationType.AUDIO]
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
@@ -203,10 +205,14 @@ class MockAudioGenerator(BaseAIGenerator):
         try:
             subprocess.run(
                 [
-                    "ffmpeg", "-y",
-                    "-f", "lavvi",
-                    "-i", "sine=frequency=440:duration=2:sample_rate=44100",
-                    "-b:a", "128k",
+                    "ffmpeg",
+                    "-y",
+                    "-f",
+                    "lavvi",
+                    "-i",
+                    "sine=frequency=440:duration=2:sample_rate=44100",
+                    "-b:a",
+                    "128k",
                     output_path,
                 ],
                 capture_output=True,
@@ -232,6 +238,7 @@ class MockAudioGenerator(BaseAIGenerator):
 
 # ── Seedance 专用 Mock ──
 
+
 class MockSeedanceGenerator(BaseAIGenerator):
     """Mock Seedance 生成器 — 模拟 Seedance 2.0/2.5 provider 行为."""
 
@@ -253,7 +260,7 @@ class MockSeedanceGenerator(BaseAIGenerator):
         return "seedance"
 
     @property
-    def supported_types(self) -> List[GenerationType]:
+    def supported_types(self) -> list[GenerationType]:
         return [GenerationType.VIDEO, GenerationType.IMAGE]
 
     def generate(self, request: GenerationRequest) -> GenerationResult:

@@ -1,18 +1,18 @@
 """视频分析器 - 元数据提取、场景分割、关键帧提取、音频分析."""
+
 import json
 import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import cv2
 import numpy as np
-from PIL import Image
 from rich.console import Console
 
-from video_toolkit.models.video import VideoMetadata, AudioInfo
-from video_toolkit.models.analysis import VideoAnalysisResult, SceneInfo, KeyframeInfo
+from video_toolkit.models.analysis import KeyframeInfo, SceneInfo, VideoAnalysisResult
+from video_toolkit.models.video import AudioInfo, VideoMetadata
 
 console = Console()
 
@@ -20,8 +20,14 @@ console = Console()
 def _run_ffprobe(video_path: str) -> dict:
     """运行 ffprobe 获取视频信息."""
     cmd = [
-        "ffprobe", "-v", "quiet", "-print_format", "json",
-        "-show_format", "-show_streams", video_path,
+        "ffprobe",
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        video_path,
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -30,14 +36,12 @@ def _run_ffprobe(video_path: str) -> dict:
         return {}
 
 
-def _extract_dominant_colors(image: np.ndarray, k: int = 5) -> List[str]:
+def _extract_dominant_colors(image: np.ndarray, k: int = 5) -> list[str]:
     """提取主色调."""
     try:
         pixels = image.reshape(-1, 3).astype(np.float32)
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-        _, labels, centers = cv2.kmeans(
-            pixels, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS
-        )
+        _, labels, centers = cv2.kmeans(pixels, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
         counts = np.bincount(labels.flatten())
         dominant = centers[np.argsort(-counts)]
         return [f"#{int(c[2]):02x}{int(c[1]):02x}{int(c[0]):02x}" for c in dominant]
@@ -151,7 +155,7 @@ class VideoAnalyzer:
 
     def detect_scenes(
         self, threshold: float = 30.0, min_scene_duration: float = 1.0
-    ) -> List[SceneInfo]:
+    ) -> list[SceneInfo]:
         """检测场景分割."""
         scenes = []
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -170,9 +174,7 @@ class VideoAnalyzer:
             if not ret:
                 break
 
-            hist = cv2.calcHist(
-                [frame], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256]
-            )
+            hist = cv2.calcHist([frame], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
             hist = cv2.normalize(hist, hist).flatten()
 
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -194,14 +196,11 @@ class VideoAnalyzer:
                             duration=scene_duration,
                             start_frame=scene_start_frame,
                             end_frame=scene_end_frame,
-                            brightness=brightness_accum
-                            / (scene_end_frame - scene_start_frame + 1),
-                            motion_level=float(np.mean(motion_scores))
-                            if motion_scores
-                            else 0.0,
-                            is_static=float(np.mean(motion_scores)) < 0.02
-                            if motion_scores
-                            else True,
+                            brightness=brightness_accum / (scene_end_frame - scene_start_frame + 1),
+                            motion_level=float(np.mean(motion_scores)) if motion_scores else 0.0,
+                            is_static=(
+                                float(np.mean(motion_scores)) < 0.02 if motion_scores else True
+                            ),
                         )
                         scenes.append(scene)
 
@@ -223,14 +222,9 @@ class VideoAnalyzer:
                     duration=scene_duration,
                     start_frame=scene_start_frame,
                     end_frame=self._total_frames - 1,
-                    brightness=brightness_accum
-                    / max(self._total_frames - scene_start_frame, 1),
-                    motion_level=float(np.mean(motion_scores))
-                    if motion_scores
-                    else 0.0,
-                    is_static=float(np.mean(motion_scores)) < 0.02
-                    if motion_scores
-                    else True,
+                    brightness=brightness_accum / max(self._total_frames - scene_start_frame, 1),
+                    motion_level=float(np.mean(motion_scores)) if motion_scores else 0.0,
+                    is_static=float(np.mean(motion_scores)) < 0.02 if motion_scores else True,
                 )
                 scenes.append(scene)
 
@@ -238,7 +232,7 @@ class VideoAnalyzer:
 
     def extract_keyframes(
         self, count: int = 10, output_dir: Optional[str] = None
-    ) -> List[KeyframeInfo]:
+    ) -> list[KeyframeInfo]:
         """提取关键帧."""
         if output_dir is None:
             output_dir = tempfile.mkdtemp(prefix="vt_keyframes_")
@@ -249,9 +243,7 @@ class VideoAnalyzer:
         if self._total_frames <= count:
             frame_indices = list(range(self._total_frames))
         else:
-            frame_indices = [
-                int(i * self._total_frames / count) for i in range(count)
-            ]
+            frame_indices = [int(i * self._total_frames / count) for i in range(count)]
 
         for i, idx in enumerate(frame_indices):
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
@@ -280,7 +272,7 @@ class VideoAnalyzer:
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         return keyframes
 
-    def detect_style(self, scenes: List[SceneInfo]) -> List[str]:
+    def detect_style(self, scenes: list[SceneInfo]) -> list[str]:
         """检测视频风格标签."""
         tags = []
 
@@ -348,9 +340,7 @@ class VideoAnalyzer:
         console.print(f"  检测到 [bold]{len(scenes)}[/bold] 个场景")
 
         console.print("[dim]3/4 关键帧提取...[/dim]")
-        keyframes = self.extract_keyframes(
-            count=keyframe_count, output_dir=keyframe_dir
-        )
+        keyframes = self.extract_keyframes(count=keyframe_count, output_dir=keyframe_dir)
         console.print(f"  提取了 [bold]{len(keyframes)}[/bold] 个关键帧")
 
         console.print("[dim]4/4 风格检测...[/dim]")
@@ -365,12 +355,8 @@ class VideoAnalyzer:
             metadata=metadata,
             scenes=scenes,
             keyframes=keyframes,
-            avg_brightness=float(np.mean([s.brightness for s in scenes]))
-            if scenes
-            else 0.0,
-            avg_motion=float(np.mean([s.motion_level for s in scenes]))
-            if scenes
-            else 0.0,
+            avg_brightness=float(np.mean([s.brightness for s in scenes])) if scenes else 0.0,
+            avg_motion=float(np.mean([s.motion_level for s in scenes])) if scenes else 0.0,
             color_palette=all_colors[:10],
             style_tags=style_tags,
         )

@@ -1,8 +1,9 @@
 """AI 生成器基类."""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 class GenerationType(str, Enum):
@@ -25,7 +26,7 @@ class GenerationRequest:
     duration: float = 5.0
     negative_prompt: str = ""
     seed: Optional[int] = None
-    extra_params: Dict[str, Any] = field(default_factory=dict)
+    extra_params: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -38,7 +39,7 @@ class GenerationResult:
     generation_type: GenerationType = GenerationType.IMAGE
     duration: float = 0.0
     message: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class BaseAIGenerator(ABC):
@@ -56,7 +57,7 @@ class BaseAIGenerator(ABC):
 
     @property
     @abstractmethod
-    def supported_types(self) -> List[GenerationType]:
+    def supported_types(self) -> list[GenerationType]:
         """支持的生成类型."""
         ...
 

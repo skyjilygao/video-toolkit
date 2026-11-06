@@ -1,13 +1,15 @@
 """测试视频分析器."""
+
 import os
+
 import pytest
-from video_toolkit.core.analyzer import VideoAnalyzer, _extract_dominant_colors, _analyze_frame
+
+from video_toolkit.core.analyzer import VideoAnalyzer, _analyze_frame, _extract_dominant_colors
 
 # 跳过标记：需要实际视频文件
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("TEST_VIDEO_DIR") and not os.path.exists(
-        r"\\192.168.88.121\.n8n-files\video_download\video\2026-11-02\20261102"
-    ),
+    not os.environ.get("TEST_VIDEO_DIR")
+    and not os.path.exists(r"\\192.168.88.121\.n8n-files\video_download\video\2026-11-02\20261102"),
     reason="未设置 TEST_VIDEO_DIR 环境变量或默认目录不存在",
 )
 

@@ -9,9 +9,10 @@
 
 参考: OpenMontage/lib/shot_prompt_builder.py
 """
+
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from video_toolkit.models.analysis import (
     AnalysisBrief,
@@ -19,17 +20,16 @@ from video_toolkit.models.analysis import (
     StyleProfile,
 )
 
-
 # ── 运动类型到镜头语言的映射 ──
 
-_MOTION_TO_SHOT_SIZE: Dict[str, str] = {
+_MOTION_TO_SHOT_SIZE: dict[str, str] = {
     "static_image": "locked-off static camera, wide establishing shot",
     "animated_still": "slow pan across the scene, medium shot",
     "motion_clip": "dynamic tracking shot, medium-wide framing",
     "unknown": "smooth camera movement, medium shot",
 }
 
-_MOTION_TO_MOVEMENT: Dict[str, str] = {
+_MOTION_TO_MOVEMENT: dict[str, str] = {
     "static_image": "locked-off static camera",
     "animated_still": "gentle tilt and pan across details",
     "motion_clip": "smooth tracking following the action",
@@ -39,13 +39,13 @@ _MOTION_TO_MOVEMENT: Dict[str, str] = {
 
 # ── 能量级别到光线/色调的映射 ──
 
-_ENERGY_TO_LIGHTING: Dict[str, str] = {
+_ENERGY_TO_LIGHTING: dict[str, str] = {
     "low": "soft diffused lighting, muted tones, calm atmosphere",
     "medium": "balanced natural lighting, neutral color temperature",
     "high": "dramatic high-contrast lighting, vibrant saturated colors",
 }
 
-_ENERGY_TO_TEMPERATURE: Dict[str, str] = {
+_ENERGY_TO_TEMPERATURE: dict[str, str] = {
     "low": "cool blue-toned color palette",
     "medium": "neutral balanced colors",
     "high": "warm amber-toned color palette with energy",
@@ -54,7 +54,7 @@ _ENERGY_TO_TEMPERATURE: Dict[str, str] = {
 
 # ── 视觉类型到主体描述的修饰 ──
 
-_VISUAL_TYPE_MODIFIERS: Dict[str, str] = {
+_VISUAL_TYPE_MODIFIERS: dict[str, str] = {
     "landscape": "expansive scenic vista, natural environment",
     "portrait": "human subject centered, shallow depth of field",
     "screen_recording": "digital interface, clean UI elements",
@@ -73,7 +73,7 @@ class PromptEngine:
 
     def __init__(
         self,
-        style_profile: Optional[StyleProfile] = None,
+        style_profile: StyleProfile | None = None,
         style_prefix: str = "",
         style_suffix: str = "cinematic, high quality, professional",
     ):
@@ -111,7 +111,7 @@ class PromptEngine:
 
     def _build_full_layers(self, scene: SceneBrief) -> str:
         """完整 5 层提示词."""
-        layers: List[str] = []
+        layers: list[str] = []
 
         # Layer 1: Camera — 基于运动类型推导
         camera_desc = self._derive_camera(scene)
@@ -225,9 +225,9 @@ class PromptEngine:
 
     def build_all_prompts(
         self,
-        scenes: List[SceneBrief],
+        scenes: list[SceneBrief],
         layer_mode: str = "full",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """为所有场景批量生成提示词.
 
         Returns
@@ -239,19 +239,21 @@ class PromptEngine:
         for scene in scenes:
             prompt = self.build_scene_prompt(scene, layer_mode=layer_mode)
             narration = scene.narration_text or scene.description or ""
-            results.append({
-                "scene_index": scene.scene_index,
-                "prompt": prompt,
-                "narration_text": narration,
-                "duration": scene.duration or 5.0,
-            })
+            results.append(
+                {
+                    "scene_index": scene.scene_index,
+                    "prompt": prompt,
+                    "narration_text": narration,
+                    "duration": scene.duration or 5.0,
+                }
+            )
         return results
 
     # ── 旁白生成 ──
 
     def build_narration_script(
         self,
-        scenes: List[SceneBrief],
+        scenes: list[SceneBrief],
         brief: AnalysisBrief,
     ) -> str:
         """生成完整的旁白脚本.

@@ -16,15 +16,18 @@ Modules:
 __version__ = "0.1.0"
 __author__ = "Video Toolkit"
 
-from video_toolkit.models.video import VideoMetadata, AudioInfo
-from video_toolkit.models.analysis import (
-    VideoAnalysisResult, SceneInfo, KeyframeInfo, AnalysisBrief,
-)
-from video_toolkit.models.composition import CompositionConfig, CompositionResult, TransitionType
+from video_toolkit.analysis import AnalysisManager, BaseAnalysisAdapter
+from video_toolkit.composition.composer import VideoComposer
 from video_toolkit.core.analyzer import VideoAnalyzer
 from video_toolkit.decomposition.decomposer import VideoDecomposer
-from video_toolkit.composition.composer import VideoComposer
-from video_toolkit.analysis import AnalysisManager, BaseAnalysisAdapter
+from video_toolkit.models.analysis import (
+    AnalysisBrief,
+    KeyframeInfo,
+    SceneInfo,
+    VideoAnalysisResult,
+)
+from video_toolkit.models.composition import CompositionConfig, CompositionResult, TransitionType
+from video_toolkit.models.video import AudioInfo, VideoMetadata
 
 __all__ = [
     "__version__",

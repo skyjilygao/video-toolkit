@@ -1,6 +1,6 @@
 """fal.ai 生成器 - FLUX 图片、Kling/Seedance/Hailuo 视频."""
+
 import time
-from typing import List
 
 from video_toolkit.ai.base import (
     BaseAIGenerator,
@@ -23,7 +23,7 @@ class FalAIGenerator(BaseAIGenerator):
         return "fal"
 
     @property
-    def supported_types(self) -> List[GenerationType]:
+    def supported_types(self) -> list[GenerationType]:
         return [GenerationType.IMAGE, GenerationType.VIDEO]
 
     def generate(self, request: GenerationRequest) -> GenerationResult:

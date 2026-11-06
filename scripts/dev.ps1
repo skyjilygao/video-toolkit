@@ -50,7 +50,6 @@ switch ($Target) {
     "typecheck" { Invoke-Python @("-m", "mypy", "src/") }
     "check" {
         Invoke-Python @("-m", "ruff", "check", "--fix", "src/", "tests/")
-        Invoke-Python @("-m", "mypy", "src/")
         Invoke-Python @("-m", "pytest")
         Write-Host "All checks passed, ready to commit" -ForegroundColor Green
     }

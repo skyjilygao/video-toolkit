@@ -80,9 +80,25 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "A"]
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "3.9"
+# 注: mypy 2.x 不再支持 python_version=3.9（检查器要求 3.10+），
+# 因此改用运行解释器的版本进行检查；项目运行要求仍为 Python >= 3.9
 warn_return_any = true
 warn_unused_configs = true
+
+# 可选/动态加载的第三方模块无类型存根，忽略其缺失（避免误报）
+[[tool.mypy.overrides]]
+module = [
+    "fal_client",
+    "yaml",
+    "ffmpeg",
+    "faster_whisper",
+    "scenedetect",
+    "scenedetect.*",
+    "tools",
+    "tools.*",
+    "OpenMontage.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

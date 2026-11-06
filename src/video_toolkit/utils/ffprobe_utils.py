@@ -1,12 +1,13 @@
 """FFprobe 工具函数 — 获取视频元数据."""
+
 from __future__ import annotations
 
 import json
 import subprocess
-from typing import Any, Dict
+from typing import Any
 
 
-def get_video_info(video_path: str) -> Dict[str, Any]:
+def get_video_info(video_path: str) -> dict[str, Any]:
     """获取视频信息（宽、高、帧率、时长等）.
 
     Parameters
@@ -28,21 +29,23 @@ def get_video_info(video_path: str) -> Dict[str, Any]:
         }
     """
     cmd = [
-        "ffprobe", "-v", "quiet",
-        "-print_format", "json",
-        "-show_format", "-show_streams",
+        "ffprobe",
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
         video_path,
     ]
 
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         data = json.loads(result.stdout)
     except Exception:
         return _empty_info()
 
-    info: Dict[str, Any] = {
+    info: dict[str, Any] = {
         "width": 0,
         "height": 0,
         "fps": 0.0,
@@ -80,7 +83,7 @@ def get_video_info(video_path: str) -> Dict[str, Any]:
     return info
 
 
-def _empty_info() -> Dict[str, Any]:
+def _empty_info() -> dict[str, Any]:
     return {
         "width": 0,
         "height": 0,

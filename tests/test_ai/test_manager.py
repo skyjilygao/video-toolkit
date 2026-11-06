@@ -1,7 +1,12 @@
 """测试 AI 管理器."""
-import pytest
+
+from video_toolkit.ai.base import (
+    BaseAIGenerator,
+    GenerationRequest,
+    GenerationResult,
+    GenerationType,
+)
 from video_toolkit.ai.manager import AIGeneratorManager
-from video_toolkit.ai.base import BaseAIGenerator, GenerationRequest, GenerationResult, GenerationType
 
 
 class TestAIGeneratorManager:

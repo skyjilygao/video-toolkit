@@ -10,6 +10,7 @@
     cd video-toolkit
     python -m pytest tests/test_generation.py -v
 """
+
 import json
 import os
 import sys
@@ -22,13 +23,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 # ── Fixtures ──
 
+
 def make_mock_brief(tmp_path):
     """创建用于测试的 mock AnalysisBrief."""
     from video_toolkit.models.analysis import (
         AnalysisBrief,
+        PacingProfile,
         SceneBrief,
         StyleProfile,
-        PacingProfile,
         TranscriptResult,
     )
 
@@ -69,7 +71,11 @@ def make_mock_brief(tmp_path):
         ),
     ]
 
-    video_path = os.path.join(tmp_path, "test.mp4") if isinstance(tmp_path, str) else str(tmp_path / "test.mp4")
+    video_path = (
+        os.path.join(tmp_path, "test.mp4")
+        if isinstance(tmp_path, str)
+        else str(tmp_path / "test.mp4")
+    )
     return AnalysisBrief(
         video_path=video_path,
         duration_seconds=15.0,
@@ -110,6 +116,7 @@ def make_mock_analysis_json(brief, tmp_path):
 
 # ── 测试 1: PromptEngine ──
 
+
 class TestPromptEngine:
     def test_build_scene_prompt_full(self):
         """测试完整5层提示词生成."""
@@ -117,9 +124,7 @@ class TestPromptEngine:
         from video_toolkit.models.analysis import SceneBrief, StyleProfile
 
         engine = PromptEngine(
-            style_profile=StyleProfile(
-                color_palette={"overall_mood": "dramatic"}
-            ),
+            style_profile=StyleProfile(color_palette={"overall_mood": "dramatic"}),
             style_prefix="epic cinematic",
             style_suffix="high quality, 8K",
         )
@@ -178,7 +183,6 @@ class TestPromptEngine:
         from video_toolkit.generation.prompt_engine import PromptEngine
         from video_toolkit.models.analysis import (
             AnalysisBrief,
-            SceneBrief,
             TranscriptResult,
         )
 
@@ -218,6 +222,7 @@ class TestPromptEngine:
 
 # ── 测试 2: 数据模型 ──
 
+
 class TestModels:
     def test_regeneration_config_defaults(self):
         from video_toolkit.models.analysis import RegenerationConfig
@@ -254,6 +259,7 @@ class TestModels:
 
 # ── 测试 3: GenerationManager ──
 
+
 class TestGenerationManager:
     def test_list_adapters(self):
         from video_toolkit.generation.manager import GenerationManager
@@ -264,8 +270,8 @@ class TestGenerationManager:
         # openmontage 可能未安装
 
     def test_get_adapter(self):
-        from video_toolkit.generation.manager import GenerationManager
         from video_toolkit.generation.custom_adapter import CustomGenerationAdapter
+        from video_toolkit.generation.manager import GenerationManager
 
         mgr = GenerationManager()
         tmp = tempfile.mkdtemp()
@@ -285,6 +291,7 @@ class TestGenerationManager:
 
 
 # ── 测试 4: CustomGenerationAdapter ──
+
 
 class TestCustomGenerationAdapter:
     def test_init(self):
@@ -350,20 +357,19 @@ class TestCustomGenerationAdapter:
 
 # ── 测试 5: CLI 辅助函数 ──
 
+
 class TestCLIHelpers:
     def test_derive_style_prefix(self):
         """测试风格前缀推导."""
         from video_toolkit.cli import _derive_style_prefix
         from video_toolkit.models.analysis import (
             AnalysisBrief,
-            StyleProfile,
             PacingProfile,
+            StyleProfile,
         )
 
         brief = AnalysisBrief(
-            style_profile=StyleProfile(
-                color_palette={"overall_mood": "dramatic"}
-            ),
+            style_profile=StyleProfile(color_palette={"overall_mood": "dramatic"}),
             pacing=PacingProfile(pacing_style="dynamic_social"),
         )
         prefix = _derive_style_prefix(brief)

@@ -1,9 +1,9 @@
 """视频合成器 - 片段拼接与转场效果."""
+
 import os
 import subprocess
 import tempfile
-from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from rich.console import Console
 
@@ -38,7 +38,7 @@ class VideoComposer:
 
     def compose(
         self,
-        segment_paths: List[str],
+        segment_paths: list[str],
         config: Optional[CompositionConfig] = None,
     ) -> CompositionResult:
         """合成视频片段."""
@@ -46,9 +46,7 @@ class VideoComposer:
             config = CompositionConfig()
 
         if len(segment_paths) < 1:
-            return CompositionResult(
-                config=config, success=False, message="至少需要1个片段"
-            )
+            return CompositionResult(config=config, success=False, message="至少需要1个片段")
 
         os.makedirs(os.path.dirname(config.output_path) or ".", exist_ok=True)
 
@@ -59,9 +57,7 @@ class VideoComposer:
         else:
             return self._compose_with_transitions(segment_paths, config)
 
-    def _compose_single(
-        self, segment_path: str, config: CompositionConfig
-    ) -> CompositionResult:
+    def _compose_single(self, segment_path: str, config: CompositionConfig) -> CompositionResult:
         """单个片段直接复制."""
         import shutil
 
@@ -82,7 +78,7 @@ class VideoComposer:
             )
 
     def _compose_concat(
-        self, segment_paths: List[str], config: CompositionConfig
+        self, segment_paths: list[str], config: CompositionConfig
     ) -> CompositionResult:
         """使用 concat 模式合成（无转场）."""
         list_file = os.path.join(
@@ -97,9 +93,16 @@ class VideoComposer:
                 f.write(f"file '{escaped_path}'\n")
 
         cmd = [
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-            "-i", list_file,
-            "-c", "copy",
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            list_file,
+            "-c",
+            "copy",
             config.output_path,
         ]
 
@@ -114,9 +117,7 @@ class VideoComposer:
                 message="concat 拼接完成" if success else f"失败: {result.stderr.decode()[-200:]}",
             )
         except subprocess.TimeoutExpired:
-            return CompositionResult(
-                config=config, success=False, message="拼接超时"
-            )
+            return CompositionResult(config=config, success=False, message="拼接超时")
         finally:
             os.path.exists(list_file) and os.remove(list_file)
 
@@ -126,10 +127,14 @@ class VideoComposer:
             import json
 
             cmd = [
-                "ffprobe", "-v", "quiet",
-                "-print_format", "json",
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
                 "-show_streams",
-                "-select_streams", "a",
+                "-select_streams",
+                "a",
                 video_path,
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
@@ -143,7 +148,7 @@ class VideoComposer:
 
     def _compose_with_transitions(
         self,
-        segment_paths: List[str],
+        segment_paths: list[str],
         config: CompositionConfig,
     ) -> CompositionResult:
         """使用 xfade 滤镜合成（带转场）."""
@@ -151,9 +156,8 @@ class VideoComposer:
         offset = config.transition_duration
 
         # 检测所有片段是否都有音频
-        all_have_audio = (
-            config.audio_mode != "mute"
-            and all(self._has_audio_stream(p) for p in segment_paths)
+        all_have_audio = config.audio_mode != "mute" and all(
+            self._has_audio_stream(p) for p in segment_paths
         )
 
         # 构建视频 xfade 链式滤镜
@@ -176,9 +180,7 @@ class VideoComposer:
             )
             if all_have_audio:
                 out_a = f"[a{i}]"
-                audio_parts.append(
-                    f"{prev_a}[{i}:a]acrossfade=d={offset}:c1=tri:c2=tri{out_a}"
-                )
+                audio_parts.append(f"{prev_a}[{i}:a]acrossfade=d={offset}:c1=tri:c2=tri{out_a}")
                 prev_a = out_a
             prev_v = out_v
 
@@ -214,28 +216,35 @@ class VideoComposer:
                 segments_used=segment_paths,
                 output_path=config.output_path,
                 success=success,
-                message="转场合成完成"
-                if success
-                else f"失败: {result.stderr.decode()[-300:]}",
+                message="转场合成完成" if success else f"失败: {result.stderr.decode()[-300:]}",
             )
         except subprocess.TimeoutExpired:
-            return CompositionResult(
-                config=config, success=False, message="转场合成超时"
-            )
+            return CompositionResult(config=config, success=False, message="转场合成超时")
 
     def _add_background_music(self, config: CompositionConfig):
         """添加背景音频."""
         temp_output = config.output_path + ".tmp.mp4"
 
         cmd = [
-            "ffmpeg", "-y",
-            "-i", config.output_path,
-            "-i", config.music_path,
+            "ffmpeg",
+            "-y",
+            "-i",
+            config.output_path,
+            "-i",
+            config.music_path,
             "-filter_complex",
             f"[1:a]volume={config.music_volume}[bgm];"
             f"[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[a]",
-            "-map", "0:v", "-map", "[a]",
-            "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
+            "-map",
+            "0:v",
+            "-map",
+            "[a]",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
             temp_output,
         ]
 
@@ -253,9 +262,13 @@ class VideoComposer:
             import json
 
             cmd = [
-                "ffprobe", "-v", "quiet",
-                "-print_format", "json",
-                "-show_format", video_path,
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_format",
+                video_path,
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             data = json.loads(result.stdout)

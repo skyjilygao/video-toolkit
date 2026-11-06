@@ -1,6 +1,6 @@
 """OpenAI 生成器 - DALL-E 图片、TTS 语音."""
+
 import time
-from typing import List
 
 from video_toolkit.ai.base import (
     BaseAIGenerator,
@@ -23,7 +23,7 @@ class OpenAIGenerator(BaseAIGenerator):
         return "openai"
 
     @property
-    def supported_types(self) -> List[GenerationType]:
+    def supported_types(self) -> list[GenerationType]:
         return [GenerationType.IMAGE, GenerationType.AUDIO]
 
     def __init__(self, api_key: str, **kwargs):

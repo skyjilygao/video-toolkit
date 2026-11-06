@@ -1,16 +1,16 @@
 """测试视频合成器."""
-import os
-import pytest
-import tempfile
-from pathlib import Path
 
-from video_toolkit.composition.composer import VideoComposer, TRANSITION_EFFECTS
+import os
+import tempfile
+
+import pytest
+
+from video_toolkit.composition.composer import TRANSITION_EFFECTS, VideoComposer
 from video_toolkit.models.composition import CompositionConfig, TransitionType
 
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("TEST_VIDEO_DIR") and not os.path.exists(
-        r"\\192.168.88.121\.n8n-files\video_download\video\2026-11-02\20261102"
-    ),
+    not os.environ.get("TEST_VIDEO_DIR")
+    and not os.path.exists(r"\\192.168.88.121\.n8n-files\video_download\video\2026-11-02\20261102"),
     reason="未设置 TEST_VIDEO_DIR 环境变量或默认目录不存在",
 )
 
@@ -27,9 +27,7 @@ class TestVideoComposer:
     def test_compose_single_segment(self, skip_if_no_video):
         composer = VideoComposer()
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = CompositionConfig(
-                output_path=os.path.join(tmpdir, "output.mp4")
-            )
+            config = CompositionConfig(output_path=os.path.join(tmpdir, "output.mp4"))
             result = composer.compose([skip_if_no_video], config)
             assert result.success is True
             assert os.path.exists(config.output_path)
@@ -58,4 +56,4 @@ class TestVideoComposer:
                 transition_duration=0.3,
             )
             comp_result = composer.compose(segments[:2], config)
-            assert comp_result.success is True or not comp_result.success is None
+            assert comp_result.success is True or comp_result.success is not None

@@ -1,7 +1,8 @@
 """视频元数据模型."""
-from pydantic import BaseModel, Field
-from typing import List
+
 from enum import Enum
+
+from pydantic import BaseModel, Field
 
 
 class VideoFormat(str, Enum):

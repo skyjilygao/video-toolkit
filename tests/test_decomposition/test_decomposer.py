@@ -1,16 +1,16 @@
 """测试视频拆解器."""
-import os
-import pytest
-import tempfile
-from pathlib import Path
 
-from video_toolkit.decomposition.decomposer import VideoDecomposer
+import os
+import tempfile
+
+import pytest
+
 from video_toolkit.core.analyzer import VideoAnalyzer
+from video_toolkit.decomposition.decomposer import VideoDecomposer
 
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("TEST_VIDEO_DIR") and not os.path.exists(
-        r"\\192.168.88.121\.n8n-files\video_download\video\2026-11-02\20261102"
-    ),
+    not os.environ.get("TEST_VIDEO_DIR")
+    and not os.path.exists(r"\\192.168.88.121\.n8n-files\video_download\video\2026-11-02\20261102"),
     reason="未设置 TEST_VIDEO_DIR 环境变量或默认目录不存在",
 )
 
@@ -20,7 +20,7 @@ class TestVideoDecomposer:
 
     def test_init_creates_output_dir(self, skip_if_no_video):
         with tempfile.TemporaryDirectory() as tmpdir:
-            decomposer = VideoDecomposer(skip_if_no_video, output_dir=tmpdir)
+            VideoDecomposer(skip_if_no_video, output_dir=tmpdir)
             assert os.path.exists(tmpdir)
             assert os.path.exists(os.path.join(tmpdir, "segments"))
 

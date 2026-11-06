@@ -9,15 +9,14 @@
 2. Kling 不可用时降级到 FLUX 生成图片 + Ken Burns 动态效果
 3. 最后用 FFmpeg 拼接所有 AI 生成片段
 """
+
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import subprocess
 import tempfile
 import time
-from typing import List, Optional, Tuple
 
 from rich.console import Console
 
@@ -52,7 +51,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
         self,
         video_path: str,
         brief: AnalysisBrief,
-        work_dir: Optional[str] = None,
+        work_dir: str | None = None,
     ):
         super().__init__(video_path=video_path, brief=brief)
         self.work_dir = work_dir or tempfile.mkdtemp(prefix="vt_regen_")
@@ -60,7 +59,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
 
     # ── 环境验证 ──
 
-    def validate_environment(self) -> Tuple[bool, str]:
+    def validate_environment(self) -> tuple[bool, str]:
         """验证是否有可用的 AI Provider."""
         if self._ai_manager is None:
             from video_toolkit.ai.manager import AIGeneratorManager
@@ -87,10 +86,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
                 timeout=10,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
-            return False, (
-                f"未找到 FFmpeg: {ffmpeg_path}\n"
-                "请安装 FFmpeg 并确保在 PATH 中。"
-            )
+            return False, (f"未找到 FFmpeg: {ffmpeg_path}\n" "请安装 FFmpeg 并确保在 PATH 中。")
 
         video_providers = [p for p in providers if p in ("fal", "openai")]
         return True, f"可用 Provider: {', '.join(video_providers)}"
@@ -133,26 +129,19 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
 
             # 5. 收集成功的片段
             segments = [
-                t.output_path for t in tasks
-                if t.status == "done" and os.path.isfile(t.output_path)
+                t.output_path for t in tasks if t.status == "done" and os.path.isfile(t.output_path)
             ]
             result.generated_segments = segments
-            result.failed_scenes = [
-                t.scene_index for t in tasks if t.status == "failed"
-            ]
+            result.failed_scenes = [t.scene_index for t in tasks if t.status == "failed"]
 
             if not segments:
                 raise RuntimeError("所有场景的 AI 生成均失败")
 
-            console.print(
-                f"[green]成功生成 {len(segments)}/{len(scenes)} 个片段[/green]"
-            )
+            console.print(f"[green]成功生成 {len(segments)}/{len(scenes)} 个片段[/green]")
 
             # 6. 生成 TTS 旁白（可选）
             if config.audio_mode == "tts_narration":
-                narration_text = prompt_engine.build_narration_script(
-                    scenes, self.brief
-                )
+                narration_text = prompt_engine.build_narration_script(scenes, self.brief)
                 if narration_text:
                     tts_path = self._generate_tts(narration_text, config)
                     result.tts_audio_path = tts_path
@@ -192,9 +181,9 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
         scenes: list,
         config: RegenerationConfig,
         prompt_engine: PromptEngine,
-    ) -> List[SceneGenerationTask]:
+    ) -> list[SceneGenerationTask]:
         """为所有场景生成 AI 视频片段."""
-        tasks: List[SceneGenerationTask] = []
+        tasks: list[SceneGenerationTask] = []
 
         for scene in scenes:
             task = SceneGenerationTask(
@@ -229,9 +218,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
         """生成单个视频片段."""
         task.status = "generating"
 
-        output_path = os.path.join(
-            self.work_dir, f"gen_{task.scene_index:04d}.mp4"
-        )
+        output_path = os.path.join(self.work_dir, f"gen_{task.scene_index:04d}.mp4")
         task.output_path = output_path
 
         generation_mode = config.generation_mode
@@ -263,33 +250,39 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             self._ai_manager = AIGeneratorManager()
 
         mgr = self._ai_manager
-        
+
         # 1. 优先使用用户指定的模型ID
         target_model_id = config.preferred_model_id
         if not target_model_id:
             # 使用默认模型
-            target_model_id = global_config.get_model_config().get("config", {}).get("defaultVideoModel", "")
-        
+            target_model_id = (
+                global_config.get_model_config().get("config", {}).get("defaultVideoModel", "")
+            )
+
         if target_model_id:
             # 查找模型对应的provider
             model_config = global_config.get_model_by_id(target_model_id)
             if model_config:
                 provider_name = model_config.get("provider")
                 if provider_name and provider_name in mgr.list_providers():
-                    console.print(f"  [dim]使用模型 {target_model_id}（Provider: {provider_name}）生成视频[/dim]")
+                    console.print(
+                        f"  [dim]使用模型 {target_model_id}（Provider: {provider_name}）生成视频[/dim]"
+                    )
                     # 构建额外参数，传递模型特定配置
                     extra_params = {
                         "output_dir": self.work_dir,
                     }
                     # 如果是seedance，传递特定参数
                     if provider_name == "seedance":
-                        extra_params.update({
-                            "aspect_ratio": config.extra_params.get("aspect_ratio", "16:9"),
-                            "resolution": config.extra_params.get("resolution", "720p"),
-                            "model_version": model_config.get("version", "2.0"),
-                            "variant": model_config.get("variant", "standard"),
-                        })
-                    
+                        extra_params.update(
+                            {
+                                "aspect_ratio": config.extra_params.get("aspect_ratio", "16:9"),
+                                "resolution": config.extra_params.get("resolution", "720p"),
+                                "model_version": model_config.get("version", "2.0"),
+                                "variant": model_config.get("variant", "standard"),
+                            }
+                        )
+
                     request = GenerationRequest(
                         prompt=task.prompt,
                         generation_type=GenerationType.VIDEO,
@@ -307,7 +300,9 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
                             self._normalize_clip(task.output_path, config)
                             return True
                     # 如果指定模型失败，打印警告并尝试降级
-                    console.print(f"  [yellow]模型 {target_model_id} 生成失败，尝试降级到可用模型[/yellow]")
+                    console.print(
+                        f"  [yellow]模型 {target_model_id} 生成失败，尝试降级到可用模型[/yellow]"
+                    )
 
         # 2. 降级逻辑：遍历所有可用的视频生成provider
         providers = mgr.list_providers()
@@ -319,11 +314,13 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
                     "output_dir": self.work_dir,
                 }
                 if provider == "seedance":
-                    extra_params.update({
-                        "aspect_ratio": config.extra_params.get("aspect_ratio", "16:9"),
-                        "resolution": config.extra_params.get("resolution", "720p"),
-                    })
-                
+                    extra_params.update(
+                        {
+                            "aspect_ratio": config.extra_params.get("aspect_ratio", "16:9"),
+                            "resolution": config.extra_params.get("resolution", "720p"),
+                        }
+                    )
+
                 request = GenerationRequest(
                     prompt=task.prompt,
                     generation_type=GenerationType.VIDEO,
@@ -334,9 +331,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
                 )
                 gen_result = mgr.generate(request, provider=provider)
                 if gen_result.success:
-                    downloaded = self._download_to_local(
-                        gen_result.output_path, task.output_path
-                    )
+                    downloaded = self._download_to_local(gen_result.output_path, task.output_path)
                     if downloaded:
                         self._normalize_clip(task.output_path, config)
                         return True
@@ -377,9 +372,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             return False
 
         # 用 FFmpeg 做 Ken Burns 动态效果
-        self._ken_burns_to_video(
-            img_path, task.output_path, task.duration, config
-        )
+        self._ken_burns_to_video(img_path, task.output_path, task.duration, config)
 
         return os.path.isfile(task.output_path)
 
@@ -407,13 +400,20 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             ffmpeg_path,
             *FFMPEG_GLOBAL_ARGS,
             "-y",
-            "-loop", "1",
-            "-i", image_path,
-            "-vf", zoom_filter,
-            "-c:v", "libx264",
-            "-t", str(duration),
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
+            "-loop",
+            "1",
+            "-i",
+            image_path,
+            "-vf",
+            zoom_filter,
+            "-c:v",
+            "libx264",
+            "-t",
+            str(duration),
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
             output_path,
         ]
 
@@ -421,7 +421,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             subprocess.run(cmd, capture_output=True, timeout=120, check=True)
         except subprocess.CalledProcessError as e:
             err = e.stderr.decode("utf-8", errors="replace") if e.stderr else str(e)
-            raise RuntimeError(f"Ken Burns 生成失败: {err[-200:]}")
+            raise RuntimeError(f"Ken Burns 生成失败: {err[-200:]}") from e
 
     # ── 下载工具 ──
 
@@ -443,6 +443,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
         if url_or_path.startswith(("http://", "https://")):
             try:
                 import urllib.request
+
                 os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
                 urllib.request.urlretrieve(url_or_path, dest)
                 return os.path.isfile(dest) and os.path.getsize(dest) > 1000
@@ -475,15 +476,23 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             ffmpeg_path,
             *FFMPEG_GLOBAL_ARGS,
             "-y",
-            "-i", clip_path,
-            "-vf", f"scale={config.output_width}:{config.output_height}",
-            "-r", str(config.output_fps),
-            "-c:v", "libx264",
-            "-preset", "medium",
-            "-crf", crf,
-            "-pix_fmt", "yuv420p",
+            "-i",
+            clip_path,
+            "-vf",
+            f"scale={config.output_width}:{config.output_height}",
+            "-r",
+            str(config.output_fps),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            crf,
+            "-pix_fmt",
+            "yuv420p",
             "-an",  # 移除音频，后续统一处理
-            "-movflags", "+faststart",
+            "-movflags",
+            "+faststart",
             tmp_path,
         ]
 
@@ -538,7 +547,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
 
     def _compose_final_video(
         self,
-        segments: List[str],
+        segments: list[str],
         config: RegenerationConfig,
         result: RegenerationResult,
     ):
@@ -600,18 +609,26 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             ffmpeg_path,
             *FFMPEG_GLOBAL_ARGS,
             "-y",
-            "-i", video_path,
-            "-i", audio_path,
+            "-i",
+            video_path,
+            "-i",
+            audio_path,
             "-filter_complex",
-            f"[0:a]volume=0.8[v0];[1:a]volume=1.0[v1];"
-            f"[v0][v1]amix=inputs=2:duration=first:dropout_transition=2[a]",
-            "-map", "0:v",
-            "-map", "[a]",
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-b:a", "192k",
+            "[0:a]volume=0.8[v0];[1:a]volume=1.0[v1];"
+            "[v0][v1]amix=inputs=2:duration=first:dropout_transition=2[a]",
+            "-map",
+            "0:v",
+            "-map",
+            "[a]",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
             "-shortest",
-            "-movflags", "+faststart",
+            "-movflags",
+            "+faststart",
             tmp_output,
         ]
 
@@ -624,14 +641,14 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
 
     # ── 辅助 ──
 
-    def _save_prompts(self, tasks: List[SceneGenerationTask], config: RegenerationConfig):
+    def _save_prompts(self, tasks: list[SceneGenerationTask], config: RegenerationConfig):
         """保存生成 prompt 到文本文件."""
         prompt_file = os.path.join(
             os.path.dirname(config.output_path) or ".",
             "generation_prompts.txt",
         )
         with open(prompt_file, "w", encoding="utf-8") as f:
-            f.write(f"# Video Regeneration Prompts\n")
+            f.write("# Video Regeneration Prompts\n")
             f.write(f"# Source: {self.video_path}\n")
             f.write(f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"# Total scenes: {len(tasks)}\n\n")

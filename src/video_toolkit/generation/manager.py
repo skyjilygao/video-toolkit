@@ -3,9 +3,8 @@
 类似于 AIGeneratorManager 和 AnalysisManager 的模式，
 GenerationManager 统一管理多个视频生成适配器。
 """
-from __future__ import annotations
 
-from typing import Dict, Optional
+from __future__ import annotations
 
 from rich.console import Console
 
@@ -18,19 +17,21 @@ class GenerationManager:
     """视频生成管理器."""
 
     def __init__(self):
-        self._adapters: Dict[str, type[BaseGenerationAdapter]] = {}
+        self._adapters: dict[str, type[BaseGenerationAdapter]] = {}
         self._register_defaults()
 
     def _register_defaults(self):
         """注册默认适配器."""
         try:
             from video_toolkit.generation.custom_adapter import CustomGenerationAdapter
+
             self.register("custom", CustomGenerationAdapter)
         except ImportError as e:
             console.print(f"[dim]CustomGenerationAdapter 导入失败: {e}[/dim]")
 
         try:
             from video_toolkit.generation.openmontage_adapter import OpenGenerationAdapter
+
             self.register("openmontage", OpenGenerationAdapter)
         except ImportError as e:
             console.print(f"[dim]OpenGenerationAdapter 导入失败: {e}[/dim]")
@@ -50,9 +51,7 @@ class GenerationManager:
         cls = self._adapters.get(name)
         if cls is None:
             available = ", ".join(self._adapters.keys())
-            raise ValueError(
-                f"未知的视频生成适配器: '{name}'。可用: {available}"
-            )
+            raise ValueError(f"未知的视频生成适配器: '{name}'。可用: {available}")
         return cls(video_path=video_path, brief=brief)
 
     def list_adapters(self) -> list[str]:

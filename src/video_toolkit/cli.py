@@ -1,4 +1,5 @@
 """命令行工具入口."""
+
 import json
 import os
 import sys
@@ -13,16 +14,15 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich import print as rprint
 
 from video_toolkit import __version__
+from video_toolkit.ai.base import GenerationRequest, GenerationType
+from video_toolkit.ai.manager import AIGeneratorManager
+from video_toolkit.composition.composer import VideoComposer
+from video_toolkit.config import config
 from video_toolkit.core.analyzer import VideoAnalyzer
 from video_toolkit.decomposition.decomposer import VideoDecomposer
-from video_toolkit.composition.composer import VideoComposer
 from video_toolkit.models.composition import CompositionConfig, TransitionType
-from video_toolkit.ai.manager import AIGeneratorManager
-from video_toolkit.ai.base import GenerationRequest, GenerationType
-from video_toolkit.config import config
 
 console = Console()
 
@@ -30,8 +30,7 @@ console = Console()
 def print_banner():
     """打印欢迎横幅."""
     banner = Panel(
-        f"[bold cyan]Video Toolkit[/bold cyan] v{__version__}\n"
-        "[dim]视频拆解与生成工具[/dim]",
+        f"[bold cyan]Video Toolkit[/bold cyan] v{__version__}\n" "[dim]视频拆解与生成工具[/dim]",
         border_style="cyan",
     )
     console.print(banner)
@@ -129,13 +128,38 @@ def main():
 @click.argument("video_path", type=click.Path(exists=True))
 @click.option("--keyframes", "-k", default=10, help="关键帧数量 (默认 10)")
 @click.option("--output", "-o", default=None, help="分析结果输出路径 (JSON)")
-@click.option("--report-dir", default=None, help="导出分析报告目录 (包含 summary.md / analysis.json / scenes.json / keyframes/)")
-@click.option("--adapter", "-a", type=click.Choice(["auto", "custom", "openmontage"]), default="auto", help="分析适配器")
-@click.option("--depth", type=click.Choice(["standard", "deep"]), default="standard", help="分析深度 (standard / deep)")
+@click.option(
+    "--report-dir",
+    default=None,
+    help="导出分析报告目录 (包含 summary.md / analysis.json / scenes.json / keyframes/)",
+)
+@click.option(
+    "--adapter",
+    "-a",
+    type=click.Choice(["auto", "custom", "openmontage"]),
+    default="auto",
+    help="分析适配器",
+)
+@click.option(
+    "--depth",
+    type=click.Choice(["standard", "deep"]),
+    default="standard",
+    help="分析深度 (standard / deep)",
+)
 @click.option("--no-transcript", is_flag=True, help="跳过字幕/转录提取")
 @click.option("--no-audio-energy", is_flag=True, help="跳过音频能量分析")
 @click.option("--no-keyframes", is_flag=True, help="跳过关键帧提取")
-def analyze(video_path, keyframes, output, report_dir, adapter, depth, no_transcript, no_audio_energy, no_keyframes):
+def analyze(
+    video_path,
+    keyframes,
+    output,
+    report_dir,
+    adapter,
+    depth,
+    no_transcript,
+    no_audio_energy,
+    no_keyframes,
+):
     """分析视频 - 提取元数据、场景、关键帧、风格.
 
     支持通过 --adapter 选择分析后端:
@@ -153,6 +177,7 @@ def analyze(video_path, keyframes, output, report_dir, adapter, depth, no_transc
         if adapter == "auto":
             from video_toolkit.analysis import AnalysisManager
             from video_toolkit.analysis.openmontage_adapter import _find_openmontage_path
+
             if _find_openmontage_path():
                 adapter_name = "openmontage"
                 console.print("[dim]自动选择适配器: openmontage[/dim]")
@@ -167,7 +192,9 @@ def analyze(video_path, keyframes, output, report_dir, adapter, depth, no_transc
 
         # --report-dir: 传给适配器用于导出报告
         adapter_instance = AnalysisManager.get_adapter(
-            name=adapter_name, video_path=video_path, output_dir=report_dir,
+            name=adapter_name,
+            video_path=video_path,
+            output_dir=report_dir,
         )
         brief = adapter_instance.analyze(
             depth=depth,
@@ -190,6 +217,7 @@ def analyze(video_path, keyframes, output, report_dir, adapter, depth, no_transc
         # -- 报告导出提示 --
         if report_dir:
             from video_toolkit.analysis.base import _derive_video_subdir
+
             subdir = _derive_video_subdir(video_path)
             full_report_path = os.path.join(report_dir, subdir)
             console.print(f"\n[bold green]报告已导出到: {full_report_path}[/bold green]")
@@ -203,13 +231,20 @@ def analyze(video_path, keyframes, output, report_dir, adapter, depth, no_transc
     except Exception as e:
         console.print(f"[red]分析失败: {e}[/red]")
         import traceback
+
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
         sys.exit(1)
 
 
 @main.command()
 @click.argument("video_path", type=click.Path(exists=True))
-@click.option("--mode", "-m", type=click.Choice(["scenes", "interval", "custom"]), default="scenes", help="拆解模式")
+@click.option(
+    "--mode",
+    "-m",
+    type=click.Choice(["scenes", "interval", "custom"]),
+    default="scenes",
+    help="拆解模式",
+)
 @click.option("--interval", "-i", default=5.0, help="间隔秒数 (interval 模式)")
 @click.option("--output", "-o", default=None, help="输出目录")
 @click.option("--re-encode", is_flag=True, help="使用重编码模式切割")
@@ -256,7 +291,13 @@ def decompose(video_path, mode, interval, output, re_encode):
 @main.command()
 @click.argument("segments", nargs=-1, required=True)
 @click.option("--output", "-o", default="composed.mp4", help="输出文件路径")
-@click.option("--transition", "-t", type=click.Choice([t.value for t in TransitionType]), default="fade", help="转场效果")
+@click.option(
+    "--transition",
+    "-t",
+    type=click.Choice([t.value for t in TransitionType]),
+    default="fade",
+    help="转场效果",
+)
 @click.option("--transition-duration", "-d", default=0.5, help="转场时长秒数")
 @click.option("--music", "-m", default=None, help="背景音乐路径")
 @click.option("--music-volume", default=0.3, help="背景音乐音量 (0.0-1.0)")
@@ -290,7 +331,13 @@ def compose(segments, output, transition, transition_duration, music, music_volu
 
 @main.command()
 @click.argument("prompt")
-@click.option("--type", "gen_type", type=click.Choice(["image", "video", "audio"]), default="image", help="生成类型")
+@click.option(
+    "--type",
+    "gen_type",
+    type=click.Choice(["image", "video", "audio"]),
+    default="image",
+    help="生成类型",
+)
 @click.option("--provider", "-p", default=None, help="指定 AI Provider")
 @click.option("--output", "-o", default=None, help="输出路径")
 @click.option("--width", default=1024, help="图片宽度")
@@ -306,7 +353,9 @@ def ai(prompt, gen_type, provider, output, width, height, duration):
 
         if not providers:
             console.print("[yellow]未配置任何 AI Provider，请在 .env 中设置 API Key[/yellow]")
-            console.print("支持的 Provider: fal (FAL_KEY), openai (OPENAI_API_KEY), elevenlabs (ELEVENLABS_API_KEY)")
+            console.print(
+                "支持的 Provider: fal (FAL_KEY), openai (OPENAI_API_KEY), elevenlabs (ELEVENLABS_API_KEY)"
+            )
             return
 
         console.print(f"可用 Provider: [bold]{', '.join(providers)}[/bold]")
@@ -356,7 +405,9 @@ def info(video_path):
         table.add_row("总帧数", str(meta.total_frames))
         table.add_row("时长", f"{meta.duration:.2f}s")
         table.add_row("视频编码", meta.video_codec)
-        table.add_row("视频码率", f"{meta.video_bitrate / 1000:.0f} kbps" if meta.video_bitrate else "N/A")
+        table.add_row(
+            "视频码率", f"{meta.video_bitrate / 1000:.0f} kbps" if meta.video_bitrate else "N/A"
+        )
         table.add_row("音频", "有" if meta.audio.has_audio else "无")
         if meta.audio.has_audio:
             table.add_row("音频编码", meta.audio.codec)
@@ -373,16 +424,15 @@ def info(video_path):
 @main.command()
 @click.argument("video_dir", type=click.Path(exists=True, file_okay=False))
 @click.option("--output", "-o", default=None, help="输出目录")
-@click.option("--mode", "-m", type=click.Choice(["scenes", "interval"]), default="scenes", help="拆解模式")
+@click.option(
+    "--mode", "-m", type=click.Choice(["scenes", "interval"]), default="scenes", help="拆解模式"
+)
 def batch_decompose(video_dir, output, mode):
     """批量拆解目录中的所有视频."""
     print_banner()
 
     video_extensions = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv"}
-    video_files = [
-        f for f in Path(video_dir).iterdir()
-        if f.suffix.lower() in video_extensions
-    ]
+    video_files = [f for f in Path(video_dir).iterdir() if f.suffix.lower() in video_extensions]
 
     if not video_files:
         console.print(f"[yellow]目录中未找到视频文件: {video_dir}[/yellow]")
@@ -421,10 +471,7 @@ def test(video_dir):
         sys.exit(1)
 
     video_extensions = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
-    video_files = [
-        f for f in Path(test_dir).rglob("*")
-        if f.suffix.lower() in video_extensions
-    ][:3]
+    video_files = [f for f in Path(test_dir).rglob("*") if f.suffix.lower() in video_extensions][:3]
 
     if not video_files:
         console.print(f"[red]未找到测试视频: {test_dir}[/red]")
@@ -485,7 +532,7 @@ def test(video_dir):
             else:
                 console.print(f"  [red]FAIL[/red] - {comp_result.message}")
         else:
-            console.print(f"  [yellow]SKIP[/green] - 片段不足")
+            console.print("  [yellow]SKIP[/green] - 片段不足")
     except Exception as e:
         console.print(f"  [red]FAIL[/red] - {e}")
 
@@ -495,35 +542,93 @@ def test(video_dir):
 @main.command()
 @click.argument("video_path", type=click.Path(exists=True))
 @click.option("--analysis", "-a", default=None, help="已有分析结果 JSON 路径（不传则重新分析）")
-@click.option("--adapter", "-ad", type=click.Choice(["custom", "openmontage"]), default="custom", help="生成适配器")
+@click.option(
+    "--adapter",
+    "-ad",
+    type=click.Choice(["custom", "openmontage"]),
+    default="custom",
+    help="生成适配器",
+)
 @click.option("--output", "-o", default="regenerated.mp4", help="输出视频路径")
-@click.option("--mode", "-m", type=click.Choice(["video_first", "image_animation"]), default="video_first", help="生成模式")
+@click.option(
+    "--mode",
+    "-m",
+    type=click.Choice(["video_first", "image_animation"]),
+    default="video_first",
+    help="生成模式",
+)
 @click.option("--width", default=1920, help="输出视频宽度")
 @click.option("--height", default=1080, help="输出视频高度")
 @click.option("--fps", default=24.0, help="输出视频帧率")
 @click.option("--max-duration", default=5.0, help="单个片段最大时长（秒）")
-@click.option("--provider", "-p", default="auto", help="优先使用的视频生成提供商 (auto / kling / runway / openai / local 等)")
-@click.option("--model", "-md", default="", help="要使用的模型ID（如 seedance-2.0-standard、fal-kling-2.0 等，优先级高于provider）")
+@click.option(
+    "--provider",
+    "-p",
+    default="auto",
+    help="优先使用的视频生成提供商 (auto / kling / runway / openai / local 等)",
+)
+@click.option(
+    "--model",
+    "-md",
+    default="",
+    help="要使用的模型ID（如 seedance-2.0-standard、fal-kling-2.0 等，优先级高于provider）",
+)
 @click.option("--scenes", "-s", default="all", help="场景选择: all / first:N / indices:N,M,K")
 @click.option("--style-prefix", default="", help="风格前缀（自动从分析结果推导）")
 @click.option("--style-suffix", default="cinematic, high quality", help="风格后缀")
-@click.option("--audio-mode", type=click.Choice(["tts_narration", "original", "mute", "background_music"]), default="tts_narration", help="音频模式")
+@click.option(
+    "--audio-mode",
+    type=click.Choice(["tts_narration", "original", "mute", "background_music"]),
+    default="tts_narration",
+    help="音频模式",
+)
 @click.option("--voice", default="alloy", help="TTS 语音名称")
 @click.option("--tts-provider", default="auto", help="TTS 提供商 (auto / openai / elevenlabs)")
 @click.option("--music", default=None, help="背景音乐路径")
 @click.option("--music-volume", default=0.2, help="背景音乐音量")
-@click.option("--transition", "-t", type=click.Choice(["fade", "wipeleft", "wiperight", "slideleft", "slideright", "dissolve"]), default="fade", help="转场效果")
+@click.option(
+    "--transition",
+    "-t",
+    type=click.Choice(["fade", "wipeleft", "wiperight", "slideleft", "slideright", "dissolve"]),
+    default="fade",
+    help="转场效果",
+)
 @click.option("--transition-duration", "-d", default=0.5, help="转场时长秒数")
-@click.option("--quality", type=click.Choice(["high", "medium", "low"]), default="medium", help="视频质量")
+@click.option(
+    "--quality", type=click.Choice(["high", "medium", "low"]), default="medium", help="视频质量"
+)
 @click.option("--subtitles/--no-subtitles", default=True, help="是否烧录字幕")
 @click.option("--max-retries", default=2, help="每个场景最大重试次数")
 @click.option("--keep-segments", is_flag=True, help="保留中间生成片段")
 @click.option("--dry-run", is_flag=True, help="仅显示 prompt 和视频信息，不实际生成")
-def regenerate(video_path, analysis, adapter, output, mode, width, height, fps,
-               max_duration, provider, model, scenes, style_prefix, style_suffix, audio_mode,
-               voice, tts_provider, music, music_volume, transition,
-               transition_duration, quality, subtitles, max_retries,
-               keep_segments, dry_run):
+def regenerate(
+    video_path,
+    analysis,
+    adapter,
+    output,
+    mode,
+    width,
+    height,
+    fps,
+    max_duration,
+    provider,
+    model,
+    scenes,
+    style_prefix,
+    style_suffix,
+    audio_mode,
+    voice,
+    tts_provider,
+    music,
+    music_volume,
+    transition,
+    transition_duration,
+    quality,
+    subtitles,
+    max_retries,
+    keep_segments,
+    dry_run,
+):
     """AI 再生视频 - 基于分析结果生成全新画面的视频.
 
     与 ``duplicate`` 命令不同，本命令通过 AI 生成全新的画面内容：
@@ -552,14 +657,16 @@ def regenerate(video_path, analysis, adapter, output, mode, width, height, fps,
     try:
         # 1. 加载分析结果
         if analysis:
-            with open(analysis, "r", encoding="utf-8") as f:
+            with open(analysis, encoding="utf-8") as f:
                 data = json.load(f)
             from video_toolkit.models.analysis import AnalysisBrief
+
             brief = AnalysisBrief.model_validate(data)
             console.print(f"[dim]已加载分析结果: {analysis}[/dim]")
         else:
             console.print("[dim]正在进行视频分析...[/dim]")
             from video_toolkit.analysis import AnalysisManager
+
             mgr = AnalysisManager()
             analyzer = mgr.get_adapter("auto" if adapter == "custom" else adapter, video_path)
             brief = analyzer.analyze(depth="standard")
@@ -579,6 +686,7 @@ def regenerate(video_path, analysis, adapter, output, mode, width, height, fps,
 
         # 3. 构建配置
         from video_toolkit.models.analysis import RegenerationConfig
+
         config = RegenerationConfig(
             output_path=output,
             output_width=width,
@@ -611,6 +719,7 @@ def regenerate(video_path, analysis, adapter, output, mode, width, height, fps,
 
         # 4. 获取适配器
         from video_toolkit.generation import GenerationManager, PromptEngine
+
         gen_mgr = GenerationManager()
         reg_adapter = gen_mgr.get_adapter(adapter, video_path, brief)
 
@@ -633,8 +742,10 @@ def regenerate(video_path, analysis, adapter, output, mode, width, height, fps,
             for scene in selected_scenes[:20]:  # 最多显示 20 个
                 prompt = engine.build_scene_prompt(scene)
                 narration = scene.narration_text or scene.description or ""
-                console.print(f"\n  [cyan]场景 #{scene.scene_index}[/cyan] "
-                              f"({scene.start_time:.1f}s-{scene.end_time:.1f}s)")
+                console.print(
+                    f"\n  [cyan]场景 #{scene.scene_index}[/cyan] "
+                    f"({scene.start_time:.1f}s-{scene.end_time:.1f}s)"
+                )
                 console.print(f"  Prompt: {prompt}")
                 if narration:
                     console.print(f"  旁白: {narration[:100]}")
@@ -648,9 +759,11 @@ def regenerate(video_path, analysis, adapter, output, mode, width, height, fps,
 
         console.print()
         if result.success:
-            console.print(f"[bold green]视频再生成功![/bold green]")
+            console.print("[bold green]视频再生成功![/bold green]")
             console.print(f"  输出: {result.output_path}")
-            console.print(f"  时长: {result.duration:.1f}s (原视频: {result.original_duration:.1f}s)")
+            console.print(
+                f"  时长: {result.duration:.1f}s (原视频: {result.original_duration:.1f}s)"
+            )
             console.print(f"  成功片段: {len(result.generated_segments)}")
             if result.failed_scenes:
                 console.print(f"  [yellow]失败场景: {result.failed_scenes}[/yellow]")
@@ -662,6 +775,7 @@ def regenerate(video_path, analysis, adapter, output, mode, width, height, fps,
     except Exception as e:
         console.print(f"[red]视频再生失败: {e}[/red]")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
@@ -684,11 +798,18 @@ def _derive_style_prefix(brief) -> str:
 
 
 @main.command()
-@click.option("--type", "-t", "model_type", type=click.Choice(["all", "video", "image", "audio"]), default="all", help="模型类型过滤")
+@click.option(
+    "--type",
+    "-t",
+    "model_type",
+    type=click.Choice(["all", "video", "image", "audio"]),
+    default="all",
+    help="模型类型过滤",
+)
 def list_models(model_type):
     """列出所有可用的AI模型."""
     console.print("\n[bold cyan]可用的AI模型[/bold cyan]")
-    
+
     if model_type in ("all", "video"):
         video_models = config.get_video_models()
         if video_models:
@@ -705,12 +826,12 @@ def list_models(model_type):
                     f"{model['id']} {status}",
                     model["name"],
                     model["providerDisplayName"],
-                    model.get("description", "")
+                    model.get("description", ""),
                 )
             console.print(table)
         else:
             console.print("[dim]没有找到可用的视频生成模型[/dim]")
-    
+
     if model_type in ("all", "image"):
         image_models = config.get_image_models()
         if image_models:
@@ -726,12 +847,12 @@ def list_models(model_type):
                     f"{model['id']} {status}",
                     model["name"],
                     model["providerDisplayName"],
-                    model.get("description", "")
+                    model.get("description", ""),
                 )
             console.print(table)
         else:
             console.print("[dim]没有找到可用的图片生成模型[/dim]")
-    
+
     if model_type in ("all", "audio"):
         audio_models = config.get_audio_models()
         if audio_models:
@@ -747,12 +868,12 @@ def list_models(model_type):
                     f"{model['id']} {status}",
                     model["name"],
                     model["providerDisplayName"],
-                    model.get("description", "")
+                    model.get("description", ""),
                 )
             console.print(table)
         else:
             console.print("[dim]没有找到可用的音频生成模型[/dim]")
-    
+
     console.print("\n[dim]✓ = API Key已配置，! = API Key未配置[/dim]")
     console.print("[dim]使用方式：在regenerate命令中添加 --model <模型ID>[/dim]")
 

@@ -1,4 +1,5 @@
 """分析报告导出器 — 将 AnalysisBrief 导出为多种格式便于人工检查."""
+
 from __future__ import annotations
 
 import json
@@ -13,9 +14,9 @@ def _sanitize_name(name: str) -> str:
     # 移除扩展名
     stem = os.path.splitext(name)[0]
     # 替换不安全字符为下划线
-    safe = re.sub(r'[^\w\u4e00-\u9fff\-.]', '_', stem)
+    safe = re.sub(r"[^\w\u4e00-\u9fff\-.]", "_", stem)
     # 去除连续下划线
-    safe = re.sub(r'_+', '_', safe).strip('_')
+    safe = re.sub(r"_+", "_", safe).strip("_")
     return safe or "untitled"
 
 
@@ -102,32 +103,36 @@ class AnalysisExporter:
         lines = []
         b = self.brief
 
-        lines.extend([
-            "# 视频分析报告",
-            "",
-            f"- **适配器**: {b.adapter}",
-            f"- **视频**: `{b.video_path}`",
-            f"- **时长**: {b.duration_seconds:.1f}s",
-            f"- **分析耗时**: {b.duration_analyzed:.1f}s",
-            f"- **生成时间**: {b.analyzed_at}",
-            "",
-        ])
+        lines.extend(
+            [
+                "# 视频分析报告",
+                "",
+                f"- **适配器**: {b.adapter}",
+                f"- **视频**: `{b.video_path}`",
+                f"- **时长**: {b.duration_seconds:.1f}s",
+                f"- **分析耗时**: {b.duration_analyzed:.1f}s",
+                f"- **生成时间**: {b.analyzed_at}",
+                "",
+            ]
+        )
 
         # 节奏
         if b.pacing:
             lines.append("## 节奏特征")
             lines.append("")
             p = b.pacing
-            lines.extend([
-                f"| 指标 | 值 |",
-                f"|------|-----|",
-                f"| 节奏风格 | {p.pacing_style} |",
-                f"| 平均场景时长 | {p.avg_scene_duration_seconds:.1f}s |",
-                f"| 最短场景 | {p.shortest_scene_seconds:.1f}s |",
-                f"| 最长场景 | {p.longest_scene_seconds:.1f}s |",
-                f"| 剪辑频率 | {p.cuts_per_minute:.1f} cuts/min |",
-                "",
-            ])
+            lines.extend(
+                [
+                    "| 指标 | 值 |",
+                    "|------|-----|",
+                    f"| 节奏风格 | {p.pacing_style} |",
+                    f"| 平均场景时长 | {p.avg_scene_duration_seconds:.1f}s |",
+                    f"| 最短场景 | {p.shortest_scene_seconds:.1f}s |",
+                    f"| 最长场景 | {p.longest_scene_seconds:.1f}s |",
+                    f"| 剪辑频率 | {p.cuts_per_minute:.1f} cuts/min |",
+                    "",
+                ]
+            )
 
         # 场景
         if b.scenes:
@@ -152,7 +157,9 @@ class AnalysisExporter:
                 kf_in_dir = os.path.join(self.output_dir, "keyframes", os.path.basename(kf.path))
                 if os.path.exists(kf_in_dir):
                     rel_path = f"keyframes/{os.path.basename(kf.path)}"
-                lines.append(f"- **#{i}** t={kf.timestamp:.1f}s | scene={kf.scene_index} | `{rel_path}`")
+                lines.append(
+                    f"- **#{i}** t={kf.timestamp:.1f}s | scene={kf.scene_index} | `{rel_path}`"
+                )
             lines.append("")
 
         # 字幕摘要
@@ -185,7 +192,7 @@ class AnalysisExporter:
         t = self.brief.transcript
 
         lines = []
-        lines.append(f"# 转录文本")
+        lines.append("# 转录文本")
         lines.append(f"# 语言: {t.language} | 字数: {t.word_count} | 片段: {len(t.segments)}")
         lines.append("")
 

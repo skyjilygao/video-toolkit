@@ -4,11 +4,10 @@
 每个适配器接收分析结果（RegenerationConfig + Brief），
 执行 AI 视频片段生成 + 拼接，返回 RegenerationResult.
 """
+
 from __future__ import annotations
 
-import time
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from video_toolkit.models.analysis import (
     AnalysisBrief,

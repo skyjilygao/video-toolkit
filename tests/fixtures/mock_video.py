@@ -5,13 +5,12 @@
 - generate_solid_color_video(): 生成纯色视频（用于 Mock AI 生成结果）
 - generate_test_image(): 生成测试图片
 """
+
 from __future__ import annotations
 
 import os
 import subprocess
 import tempfile
-from pathlib import Path
-from typing import Optional, List, Tuple
 
 
 def _find_ffmpeg() -> str:
@@ -20,7 +19,8 @@ def _find_ffmpeg() -> str:
         try:
             subprocess.run(
                 [name, "-version"],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=5,
             )
             return name
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -35,7 +35,7 @@ def generate_test_video(
     height: int = 360,
     fps: int = 24,
     with_audio: bool = True,
-    scene_changes: Optional[List[float]] = None,
+    scene_changes: list[float] | None = None,
 ) -> str:
     """生成带场景切换的合成测试视频.
 
@@ -78,8 +78,14 @@ def generate_test_video(
 
     # 构建复杂滤镜：生成多个不同颜色的片段并拼接
     colors = [
-        "red", "blue", "green", "yellow",
-        "purple", "orange", "cyan", "white",
+        "red",
+        "blue",
+        "green",
+        "yellow",
+        "purple",
+        "orange",
+        "cyan",
+        "white",
     ]
 
     segments = []
@@ -93,9 +99,7 @@ def generate_test_video(
         color = colors[i % len(colors)]
 
         # 每个片段：testsrc 动态源 + 颜色叠加 + 文字标识
-        filter_parts.append(
-            f"color=c={color}:s={width}x{height}:d={seg_dur}:r={fps}[c{i}]"
-        )
+        filter_parts.append(f"color=c={color}:s={width}x{height}:d={seg_dur}:r={fps}[c{i}]")
         # 在片段上叠加动态元素（移动的白点）
         filter_parts.append(
             f"[c{i}]drawtext=text='Scene {i}':fontsize=36:fontcolor=white:"
@@ -110,14 +114,22 @@ def generate_test_video(
     filter_complex = ";".join(filter_parts + [concat_filter])
 
     cmd = [
-        ffmpeg, "-y",
-        "-filter_complex", filter_complex,
-        "-map", "[outv]",
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-crf", "23",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
+        ffmpeg,
+        "-y",
+        "-filter_complex",
+        filter_complex,
+        "-map",
+        "[outv]",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
     ]
 
     if with_audio:
@@ -125,7 +137,7 @@ def generate_test_video(
         audio_filters = []
         for i in range(len(boundaries) - 1):
             seg_dur = boundaries[i + 1] - boundaries[i]
-            freq = 220 * (1.2 ** i)  # 递增频率
+            freq = 220 * (1.2**i)  # 递增频率
             audio_filters.append(
                 f"sine=frequency={freq}:duration={seg_dur}:sample_rate=44100[a{i}]"
             )
@@ -135,29 +147,43 @@ def generate_test_video(
         full_filter = filter_complex + ";" + ";".join(audio_filters) + ";" + concat_audio
 
         cmd = [
-            ffmpeg, "-y",
-            "-filter_complex", full_filter,
-            "-map", "[outv]", "-map", "[outa]",
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-crf", "23",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-movflags", "+faststart",
+            ffmpeg,
+            "-y",
+            "-filter_complex",
+            full_filter,
+            "-map",
+            "[outv]",
+            "-map",
+            "[outa]",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "23",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-movflags",
+            "+faststart",
         ]
 
     cmd.append(output_path)
 
     try:
         result = subprocess.run(
-            cmd, capture_output=True, timeout=60,
+            cmd,
+            capture_output=True,
+            timeout=60,
         )
         if result.returncode != 0:
             stderr = result.stderr.decode("utf-8", errors="replace")[-500:]
             raise RuntimeError(f"FFmpeg 生成测试视频失败: {stderr}")
     except subprocess.TimeoutExpired:
-        raise RuntimeError("FFmpeg 生成测试视频超时")
+        raise RuntimeError("FFmpeg 生成测试视频超时") from None
 
     return output_path
 
@@ -199,16 +225,24 @@ def generate_solid_color_video(
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
     cmd = [
-        ffmpeg, "-y",
-        "-f", "lavfi",
-        "-i", f"color=c={color}:s={width}x{height}:d={duration}:r={fps}",
-        "-vf", f"drawtext=text='{label}':fontsize=28:fontcolor=white:"
-               f"x=(w-text_w)/2:y=(h-text_h)/2",
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-crf", "23",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
+        ffmpeg,
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c={color}:s={width}x{height}:d={duration}:r={fps}",
+        "-vf",
+        f"drawtext=text='{label}':fontsize=28:fontcolor=white:" f"x=(w-text_w)/2:y=(h-text_h)/2",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
         output_path,
     ]
 
@@ -218,7 +252,7 @@ def generate_solid_color_video(
             stderr = result.stderr.decode("utf-8", errors="replace")[-300:]
             raise RuntimeError(f"FFmpeg 生成 Mock 视频失败: {stderr}")
     except subprocess.TimeoutExpired:
-        raise RuntimeError("FFmpeg 生成 Mock 视频超时")
+        raise RuntimeError("FFmpeg 生成 Mock 视频超时") from None
 
     return output_path
 
@@ -254,12 +288,16 @@ def generate_test_image(
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
     cmd = [
-        ffmpeg, "-y",
-        "-f", "lavfi",
-        "-i", f"color=c={color}:s={width}x{height}:d=1",
-        "-vf", f"drawtext=text='{label}':fontsize=32:fontcolor=white:"
-               f"x=(w-text_w)/2:y=(h-text_h)/2",
-        "-frames:v", "1",
+        ffmpeg,
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c={color}:s={width}x{height}:d=1",
+        "-vf",
+        f"drawtext=text='{label}':fontsize=32:fontcolor=white:" f"x=(w-text_w)/2:y=(h-text_h)/2",
+        "-frames:v",
+        "1",
         output_path,
     ]
 
@@ -269,7 +307,7 @@ def generate_test_image(
             stderr = result.stderr.decode("utf-8", errors="replace")[-300:]
             raise RuntimeError(f"FFmpeg 生成测试图片失败: {stderr}")
     except subprocess.TimeoutExpired:
-        raise RuntimeError("FFmpeg 生成测试图片超时")
+        raise RuntimeError("FFmpeg 生成测试图片超时") from None
 
     return output_path
 

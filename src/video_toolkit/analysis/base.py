@@ -1,10 +1,10 @@
 """分析适配器抽象基类."""
+
 from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
 
 from video_toolkit.models.analysis import (
     AnalysisBrief,
@@ -20,9 +20,10 @@ def _derive_video_subdir(video_path: str) -> str:
     """从视频路径推导安全的子目录名."""
     import os
     import re
+
     stem = os.path.splitext(os.path.basename(video_path))[0]
-    safe = re.sub(r'[^\w\u4e00-\u9fff\-.]', '_', stem)
-    safe = re.sub(r'_+', '_', safe).strip('_')
+    safe = re.sub(r"[^\w\u4e00-\u9fff\-.]", "_", stem)
+    safe = re.sub(r"_+", "_", safe).strip("_")
     return safe or "untitled"
 
 
@@ -44,7 +45,7 @@ class BaseAnalysisAdapter(ABC):
 
     name: str = "base"
 
-    def __init__(self, video_path: str, output_dir: Optional[str] = None):
+    def __init__(self, video_path: str, output_dir: str | None = None):
         self.video_path = str(Path(video_path).resolve())
         self.output_dir = output_dir
         self._start_time = 0.0
@@ -129,6 +130,7 @@ class BaseAnalysisAdapter(ABC):
         # 导出报告 — 自动按视频文件名创建子目录
         if save_report and self.output_dir:
             from video_toolkit.analysis.exporter import AnalysisExporter
+
             subdir = _derive_video_subdir(self.video_path)
             exporter = AnalysisExporter(brief, self.output_dir, subdir=subdir)
             exporter.save_all()
@@ -156,14 +158,9 @@ class BaseAnalysisAdapter(ABC):
 
     # ── 有默认实现的可选方法 ──
 
-    def classify_motion(
-        self, scenes: list[SceneBrief]
-    ) -> list[dict]:
+    def classify_motion(self, scenes: list[SceneBrief]) -> list[dict]:
         """运动分类 — 默认使用启发式规则."""
-        return [
-            {"motion_type": "unknown", "flow_variance": -1.0}
-            for _ in scenes
-        ]
+        return [{"motion_type": "unknown", "flow_variance": -1.0} for _ in scenes]
 
     def analyze_audio_energy(self) -> AudioEnergyProfile | None:
         """音频能量分析 — 默认不实现."""
@@ -191,8 +188,8 @@ class BaseAnalysisAdapter(ABC):
             avg_scene_duration_seconds=round(avg, 2),
             shortest_scene_seconds=round(min(durations), 2),
             longest_scene_seconds=round(max(durations), 2),
-            cuts_per_minute=round(len(durations) / (total_duration / 60), 2)
-            if total_duration > 0
-            else 0,
+            cuts_per_minute=(
+                round(len(durations) / (total_duration / 60), 2) if total_duration > 0 else 0
+            ),
             pacing_style=style,  # type: ignore
         )

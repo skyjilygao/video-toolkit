@@ -1,20 +1,19 @@
 """数据模型层."""
-from video_toolkit.models.video import VideoMetadata, AudioInfo, VideoFormat
+
 from video_toolkit.models.analysis import (
-    VideoAnalysisResult,
-    SceneInfo,
-    KeyframeInfo,
-    SegmentInfo,
     DecompositionResult,
+    KeyframeInfo,
+    SceneInfo,
+    SegmentInfo,
+    VideoAnalysisResult,
 )
 from video_toolkit.models.composition import (
     CompositionConfig,
     CompositionResult,
     TransitionType,
 )
+from video_toolkit.models.video import AudioInfo, VideoFormat, VideoMetadata
 
-# Solve forward reference for VideoAnalysisResult.metadata
-from video_toolkit.models.video import VideoMetadata as _VM
 VideoAnalysisResult.model_rebuild()
 
 __all__ = [

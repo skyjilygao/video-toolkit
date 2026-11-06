@@ -1,8 +1,13 @@
 """测试视频模型."""
-import pytest
-from video_toolkit.models.video import VideoMetadata, AudioInfo, VideoFormat
-from video_toolkit.models.analysis import SceneInfo, KeyframeInfo, DecompositionResult, SegmentInfo, VideoAnalysisResult
+
+from video_toolkit.models.analysis import (
+    DecompositionResult,
+    SceneInfo,
+    SegmentInfo,
+    VideoAnalysisResult,
+)
 from video_toolkit.models.composition import CompositionConfig, CompositionResult, TransitionType
+from video_toolkit.models.video import AudioInfo, VideoFormat, VideoMetadata
 
 
 class TestVideoMetadata:
@@ -120,7 +125,6 @@ class TestVideoAnalysisResult:
     """测试视频分析结果模型."""
 
     def test_create(self):
-        from datetime import datetime
 
         result = VideoAnalysisResult()
         assert result.scenes == []

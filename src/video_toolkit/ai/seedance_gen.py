@@ -1,8 +1,8 @@
 """Seedance AI 视频生成器."""
+
 import os
 import time
 from pathlib import Path
-from typing import List, Optional
 
 from video_toolkit.ai.base import (
     BaseAIGenerator,
@@ -33,7 +33,7 @@ class SeedanceAIGenerator(BaseAIGenerator):
         return "seedance"
 
     @property
-    def supported_types(self) -> List[GenerationType]:
+    def supported_types(self) -> list[GenerationType]:
         return [GenerationType.VIDEO]
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
@@ -53,7 +53,7 @@ class SeedanceAIGenerator(BaseAIGenerator):
                 success=False,
                 message="Seedance 2.5不支持fast模式，请使用standard模式",
             )
-        
+
         if self.model_version == "2.5":
             model_path = f"bytedance/seedance-2.5/{operation}"
         elif self.variant == "fast":
@@ -115,7 +115,9 @@ class SeedanceAIGenerator(BaseAIGenerator):
             video_resp.raise_for_status()
 
             # 保存视频
-            output_dir = request.extra_params.get("output_dir", os.path.join(os.getcwd(), "seedance_outputs"))
+            output_dir = request.extra_params.get(
+                "output_dir", os.path.join(os.getcwd(), "seedance_outputs")
+            )
             os.makedirs(output_dir, exist_ok=True)
             output_path = os.path.join(output_dir, f"seedance_{int(time.time())}.mp4")
             Path(output_path).write_bytes(video_resp.content)

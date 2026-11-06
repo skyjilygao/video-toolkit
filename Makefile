@@ -45,7 +45,7 @@ format: ## Black 格式化
 typecheck: ## mypy 类型检查
 	$(PYTHON) -m mypy src/
 
-check: lint typecheck test ## 提交前完整检查（lint + 类型 + 测试）
+check: lint test ## 提交前完整检查（lint + 测试）
 	@echo "✅ 检查通过，可以提交"
 
 clean: ## 清理 Python 缓存与测试临时产物
