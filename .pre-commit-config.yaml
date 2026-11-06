@@ -1,0 +1,44 @@
+# pre-commit 配置：提交前自动检查
+#
+# 安装: pip install pre-commit && pre-commit install
+# 手动全量运行: pre-commit run --all-files
+#
+# 说明: black / ruff 使用 language: system，需先执行 `pip install -e ".[dev]"`
+
+repos:
+  # ---------- 基础文件检查 ----------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  # ---------- Python 代码质量 ----------
+  - repo: local
+    hooks:
+      - id: black
+        name: black (格式化)
+        entry: black
+        language: system
+        types: [python]
+      - id: ruff
+        name: ruff (静态检查)
+        entry: ruff check --fix
+        language: system
+        types: [python]
+
+  # ---------- 测试（pre-push 阶段执行，避免拖慢每次 commit） ----------
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (测试)
+        entry: pytest
+        language: system
+        types: [python]
+        stages: [pre-push]

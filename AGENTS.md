@@ -4,6 +4,17 @@
 
 ---
 
+## 0. 通用协作规则（最高优先级）
+
+> 本文件是 video-toolkit 开发规则的**唯一事实来源（SSOT）**。CatPaw、Cursor、Trae、CodeBuddy、Claude Code、Copilot、Windsurf 等 AI 工具均通过各自配置文件引用本文件，切换工具不改变开发模式。
+
+- **语言选择**：开发前必须先确认使用哪种开发语言，并严格遵守该语言的开发规范、标准框架布局。禁止所有代码写在一个文件内、搜索文件散落同一目录等反模式。
+- **备份**：修改任何代码文件前必须先备份，格式 `原文件名.bak{yyyyMMddHHmm}`，与源文件同目录（详见 3.1）
+- **变更说明**：修改后必须给出修改依据（为什么改、改了什么）与影响范围（哪些模块/功能受影响）（详见 3.2）
+- **沟通语言**：所有信息用中文沟通（代码注释可中英混合）
+
+---
+
 ## 1. 项目概述
 
 **video-toolkit** 是一个视频拆解与生成工具，核心功能包括：
@@ -252,13 +263,13 @@ CLI 内置 `test` 命令执行端到端验证，按阶段验证：元数据 → 
 
 ### 11.1 路径查找优先级
 1. `OPENMONTAGE_PATH` 环境变量
-2. video-toolkit 同级目录 `OpenMountage/`
+2. video-toolkit 同级目录 `OpenMontage/`
 3. Python 导入探测（`import tools.analysis`）
 4. 常见位置（`~/OpenMontage` 等）
 
 ### 11.2 自动安装触发条件
 - `_find_openmontage_path()` 返回 `None` 时
-- 自动安装目标：`video-toolkit` 同级目录下的 `OpenMountage/`
+- 自动安装目标：`video-toolkit` 同级目录下的 `OpenMontage/`
 
 ### 11.3 Av 包兼容性
 - `av>=19` 移除了 `metadata_errors` 参数
@@ -284,12 +295,20 @@ CLI 内置 `test` 命令执行端到端验证，按阶段验证：元数据 → 
 
 ## 速查表
 
-| 操作 | 命令/路径 |
+> 统一命令入口：优先使用 `make <target>`（Windows 无 make 时用 `powershell -File scripts/dev.ps1 <target>`），保证跨 AI 工具动作一致。
+
+| 操作 | 命令 |
 |---|---|
-| 安装开发模式 | `pip install -e ".[dev]"` |
-| 运行测试 | `python -m pytest` |
-| 代码格式化 | `black src/ && ruff check --fix src/` |
-| 类型检查 | `mypy src/` |
+| 统一入口 | `make <target>` / `powershell -File scripts/dev.ps1 <target>` |
+| 安装开发模式 | `make install-dev` |
+| 运行测试 | `make test` |
+| 覆盖率报告 | `make test-cov` |
+| 代码格式化 | `make format` |
+| 静态检查修复 | `make lint` |
+| 类型检查 | `make typecheck` |
+| 提交前完整检查 | `make check` |
+| 清理缓存 | `make clean` |
 | 分析视频 | `video-toolkit analyze video.mp4 --report-dir ./output` |
+| 查看可用模型 | `video-toolkit list-models` |
 | 查看版本 | `video-toolkit --version` |
 | 适配器列表 | 查看 `src/video_toolkit/analysis/` 下注册器 |
