@@ -1,0 +1,97 @@
+# 视频生成模型配置文件
+# 使用时通过模型id选择对应provider，无需手动配置环境变量
+# 支持覆盖默认apiKeyEnv：可以在这里直接填写apiKey，优先级高于环境变量
+
+providers:
+  # Seedance 2.0 配置
+  seedance_2_0:
+    displayName: "Seedance 2.0 (字节跳动)"
+    apiKeyEnv: SEEDANCE_API_KEY    # 环境变量名，也可以直接填apiKey字段
+    apiKey: ""                     # 若填写则直接使用，不用读环境变量
+    api: openai-completions
+    baseURL: https://queue.fal.run
+    models:
+      - id: seedance-2.0-standard
+        name: "Seedance 2.0 标准版"
+        description: "高质量视频生成，支持10s时长，自带音频"
+        params:
+          model_version: "2.0"
+          variant: "standard"
+          cost_per_second: 0.3034
+      - id: seedance-2.0-fast
+        name: "Seedance 2.0 快速版"
+        description: "低延迟快速生成，成本更低"
+        params:
+          model_version: "2.0"
+          variant: "fast"
+          cost_per_second: 0.2419
+
+  # Seedance 2.5 配置
+  seedance_2_5:
+    displayName: "Seedance 2.5 (字节跳动)"
+    apiKeyEnv: SEEDANCE_API_KEY
+    apiKey: ""
+    api: openai-completions
+    baseURL: https://queue.fal.run
+    models:
+      - id: seedance-2.5-standard
+        name: "Seedance 2.5 旗舰版"
+        description: "最高质量视频生成，支持多参考图，自带音频"
+        params:
+          model_version: "2.5"
+          variant: "standard"
+          cost_per_second: 0.30
+
+  # fal.ai Kling 配置
+  kling:
+    displayName: "fal.ai Kling"
+    apiKeyEnv: FAL_KEY
+    apiKey: ""
+    api: openai-completions
+    baseURL: https://queue.fal.run
+    models:
+      - id: kling-v2
+        name: "Kling 2.0"
+        description: "fal.ai的高清视频生成模型"
+        params:
+          cost_per_second: 0.25
+
+  # 自定义OpenAI兼容接口
+  custom_openai:
+    displayName: "自定义OpenAI兼容服务"
+    apiKeyEnv: CUSTOM_API_KEY
+    apiKey: "sk-xxx"
+    api: openai-completions
+    baseURL: http://your-custom-api.com/v1
+    models:
+      - id: custom-video-model
+        name: "自定义视频模型"
+        description: "兼容OpenAI接口的视频生成服务"
+        params:
+          cost_per_second: 0.10
+  
+  powertokens:
+    displayName: powertokens
+    apiKeyEnv: POWERTOKENS_API_KEY
+    api: openai-completions
+    baseURL: https://api.powertokens.ai/v1
+    models:
+      - id: qwen3.5-flash
+        name: qwen3.5-flash
+      - id: deepseek-v4-flash
+        name: deepseek-v4-flash
+  pt:
+    displayName: PT
+    apiKeyEnv: PT_API_KEY
+    api: openai-completions
+    baseURL: http://47.115.146.242:18000/v1
+    models:
+      - id: glm-5.3
+        name: glm-5.3
+        contextWindow: 131072
+        reasoningEfforts:
+          off: null
+          low: low
+          medium: medium
+          high: high
+        maxTokens: 64000

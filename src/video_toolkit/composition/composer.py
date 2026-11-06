@@ -120,6 +120,27 @@ class VideoComposer:
         finally:
             os.path.exists(list_file) and os.remove(list_file)
 
+    def _has_audio_stream(self, video_path: str) -> bool:
+        """检查视频文件是否包含音频流."""
+        try:
+            import json
+
+            cmd = [
+                "ffprobe", "-v", "quiet",
+                "-print_format", "json",
+                "-show_streams",
+                "-select_streams", "a",
+                video_path,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode != 0:
+                return False
+            data = json.loads(result.stdout)
+            streams = data.get("streams", [])
+            return len(streams) > 0
+        except Exception:
+            return False
+
     def _compose_with_transitions(
         self,
         segment_paths: List[str],
@@ -129,18 +150,23 @@ class VideoComposer:
         effect = TRANSITION_EFFECTS.get(config.transition, "fade")
         offset = config.transition_duration
 
+        # 检测所有片段是否都有音频
+        all_have_audio = (
+            config.audio_mode != "mute"
+            and all(self._has_audio_stream(p) for p in segment_paths)
+        )
+
         # 构建视频 xfade 链式滤镜
         video_parts = []
         prev_v = "[0:v]"
         accumulated_offset = 0.0
 
-        # 构建音频 acrossfade 链式滤镜
+        # 构建音频 acrossfade 链式滤镜（仅当有音频时）
         audio_parts = []
-        prev_a = "[0:a]"
+        prev_a = "[0:a]" if all_have_audio else None
 
         for i in range(1, len(segment_paths)):
             out_v = f"[v{i}]"
-            out_a = f"[a{i}]"
             seg_duration = self._get_video_duration(segment_paths[i - 1])
             accumulated_offset += seg_duration - offset
 
@@ -148,11 +174,13 @@ class VideoComposer:
                 f"{prev_v}[{i}:v]xfade=transition={effect}:"
                 f"duration={offset}:offset={accumulated_offset:.4f}{out_v}"
             )
-            audio_parts.append(
-                f"{prev_a}[{i}:a]acrossfade=d={offset}:c1=tri:c2=tri{out_a}"
-            )
+            if all_have_audio:
+                out_a = f"[a{i}]"
+                audio_parts.append(
+                    f"{prev_a}[{i}:a]acrossfade=d={offset}:c1=tri:c2=tri{out_a}"
+                )
+                prev_a = out_a
             prev_v = out_v
-            prev_a = out_a
 
         # 合并视频和音频滤镜
         all_parts = video_parts + audio_parts
@@ -164,9 +192,14 @@ class VideoComposer:
             cmd.extend(["-i", path])
 
         cmd.extend(["-filter_complex", filter_complex])
-        cmd.extend(["-map", prev_v, "-map", prev_a])
+        cmd.extend(["-map", prev_v])
+        if all_have_audio:
+            cmd.extend(["-map", prev_a])
         cmd.extend(["-c:v", "libx264", "-preset", "fast", "-crf", "18"])
-        cmd.extend(["-c:a", "aac", "-b:a", "128k"])
+        if all_have_audio:
+            cmd.extend(["-c:a", "aac", "-b:a", "128k"])
+        else:
+            cmd.extend(["-an"])
         cmd.extend([config.output_path])
 
         try:

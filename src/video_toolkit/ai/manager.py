@@ -22,33 +22,83 @@ class AIGeneratorManager:
         self._register_defaults()
 
     def _register_defaults(self):
-        """注册默认 Provider."""
-        # fal.ai
-        if config.fal_key:
+        """注册默认 Provider，从模型配置文件中读取配置，支持任意OpenAI兼容接口自动适配"""
+        # 加载模型配置
+        model_config = config.get_model_config()
+        providers = model_config.get("config", {}).get("providers", {})
+        
+        for provider_name, provider_conf in providers.items():
+            # 获取API Key
+            api_key = config.get_api_key_for_provider(provider_name)
+            if not api_key:
+                continue  # 跳过没有配置API Key的Provider
+            
+            # 检查是否有支持的生成类型，没有则跳过
+            has_supported_model = False
+            for model in provider_conf.get("models", []):
+                if any(op in model.get("supports", []) for op in ["text_to_video", "text_to_image", "text_to_speech"]):
+                    has_supported_model = True
+                    break
+            if not has_supported_model:
+                continue  # 跳过没有可用生成模型的Provider
+                
             try:
-                from video_toolkit.ai.fal_ai import FalAIGenerator
-
-                self.register("fal", FalAIGenerator(config.fal_key))
-            except ImportError:
-                pass
-
-        # OpenAI
-        if config.openai_key:
-            try:
-                from video_toolkit.ai.openai_gen import OpenAIGenerator
-
-                self.register("openai", OpenAIGenerator(config.openai_key))
-            except ImportError:
-                pass
-
-        # ElevenLabs
-        if config.elevenlabs_key:
-            try:
-                from video_toolkit.ai.elevenlabs_gen import ElevenLabsGenerator
-
-                self.register("elevenlabs", ElevenLabsGenerator(config.elevenlabs_key))
-            except ImportError:
-                pass
+                # 优先匹配专用Provider实现
+                if provider_name == "seedance":
+                    from video_toolkit.ai.seedance_gen import SeedanceAIGenerator
+                    # 获取Seedance默认模型配置
+                    default_model = next(iter(provider_conf.get("models", [])), {})
+                    self.register(
+                        provider_name,
+                        SeedanceAIGenerator(
+                            api_key=api_key,
+                            api_url=provider_conf.get("baseURL", "https://queue.fal.run"),
+                            model_version=default_model.get("version", "2.0"),
+                            variant=default_model.get("variant", "standard"),
+                        ),
+                    )
+                    continue
+                
+                # 通用OpenAI兼容接口适配（新增Provider只要符合openai-completions协议就会自动适配）
+                if provider_conf.get("api") == "openai-completions":
+                    from video_toolkit.ai.openai_compatible_gen import OpenAICompatibleGenerator
+                    # 获取默认支持的模型ID
+                    default_model_id = next(
+                        (m["id"] for m in provider_conf.get("models", []) 
+                         if any(op in m.get("supports", []) for op in ["text_to_video", "text_to_image", "text_to_speech"])),
+                        ""
+                    )
+                    self.register(
+                        provider_name,
+                        OpenAICompatibleGenerator(
+                            api_key=api_key,
+                            base_url=provider_conf.get("baseURL", ""),
+                            default_model_id=default_model_id,
+                            supported_types=self._get_supported_types(provider_conf),
+                        ),
+                    )
+                    continue
+                
+                # 未知类型的provider跳过
+                console.print(f"[dim]不支持的Provider类型: {provider_name} (api: {provider_conf.get('api')})[/dim]")
+                
+            except ImportError as e:
+                console.print(f"[dim]Provider {provider_name} 导入失败: {e}[/dim]")
+            except Exception as e:
+                console.print(f"[dim]注册Provider {provider_name} 失败: {e}[/dim]")
+    
+    def _get_supported_types(self, provider_conf: dict) -> list:
+        """获取Provider支持的生成类型"""
+        supported_types = set()
+        for model in provider_conf.get("models", []):
+            for op in model.get("supports", []):
+                if op == "text_to_video":
+                    supported_types.add(GenerationType.VIDEO)
+                elif op == "text_to_image":
+                    supported_types.add(GenerationType.IMAGE)
+                elif op == "text_to_speech":
+                    supported_types.add(GenerationType.AUDIO)
+        return list(supported_types)
 
     def register(self, name: str, generator: BaseAIGenerator):
         """注册生成器."""

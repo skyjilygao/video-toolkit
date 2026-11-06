@@ -148,6 +148,46 @@ output/
 |---|---|
 | `OPENMONTAGE_PATH` | OpenMontage 仓库本地路径 |
 
+## Testing
+
+### 快速开始
+
+```bash
+cd video-toolkit
+
+# 全流程 E2E 测试（30 个用例，无真实 API 请求）
+python -m pytest tests/test_e2e_pipeline.py -v --tb=short
+
+# 全量单元测试
+python -m pytest tests/ -v --tb=short
+
+# 一键脚本
+python run_e2e_test.py
+```
+
+### 覆盖率跟踪
+
+详见 [TEST_BACKLOG.md](TEST_BACKLOG.md) — 完整的测试跟踪清单：
+
+- ✅ **已覆盖**: E2E 全流程、模型配置驱动、场景拆解、Mock AI 再生、转场拼接
+- ❌ **待补充**: TTS 旁白链路、图片动画降级、字幕烧录、BGM 混音、OpenMontage适配、转场多样性、CLI 命令等
+- 📋 **缺陷记录**: 测试过程中发现并修复的 6 个 Bug（含根因与修复方案）
+
+### 给后续 Agent 的协作指引
+
+> 如果你是接手本项目的 Agent，请优先阅读 [`TEST_BACKLOG.md`](TEST_BACKLOG.md)：
+>
+> 1. **了解测试现状**: 查看 "✅ 已测试项" 确认哪些功能稳定可靠
+> 2. **认领未完成项**: 从 "❌ 未测试项" 中挑选任务，将 `[ ]` 修改为 `[x] + PR链接`
+> 3. **新增测试规范**:
+>    - 使用 `tests/fixtures/mock_ai_generator.py` 中的 Mock 类，**绝不调用真实 API**
+>    - 测试视频通过 FFmpeg 合成，**不依赖外部文件**
+>    - E2E 测试使用 `tmp_path` 隔离，需在 `tests/test_e2e_pipeline.py` 的 `TestE2EPipeline` 类中新增方法
+>    - 代码操作必须显式指定 `encoding="utf-8"`（Windows 兼容）
+> 4. **Bug 修复必须附测试用例**: 修复同时新增 `test_xxx_regression` 防止回归
+> 5. **状态同步**: 完成测试后同步更新 `TEST_BACKLOG.md` 和 pytest.ini 的 markers
+
+
 ## License
 
 [MIT](LICENSE)

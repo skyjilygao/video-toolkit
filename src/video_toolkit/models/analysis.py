@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
-from typing import List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal
 from datetime import datetime
 
 from video_toolkit.models.video import VideoMetadata
@@ -159,6 +159,15 @@ class SceneBrief(BaseModel):
     narration_text: str = ""
     visual_type: str = "other"
 
+    # ── 镜头语言字段（用于 AI 生成 prompt）──
+    camera_angle: str = "medium"                # 镜头景别: close_up / medium / wide 等
+    camera_movement: str = "static"             # 运镜方式: static / pan_left / dolly_in 等
+    lighting: str = "natural"                   # 光照类型: natural / low_key / golden_hour 等
+    depth_of_field: str = "medium"              # 景深: shallow / medium / deep
+    color_temperature: str = "neutral"          # 色温: cool / neutral / warm / mixed
+    texture_keywords: List[str] = Field(default_factory=list)  # 纹理/材质关键词
+    hero_moment: bool = False                   # 是否为高光时刻
+
 
 class StyleProfile(BaseModel):
     """风格特征画像."""
@@ -214,3 +223,153 @@ class AnalysisBrief(BaseModel):
     adapter: str = "unknown"
     analyzed_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     duration_analyzed: float = 0.0
+
+
+# ─── 视频复制模型（方案 A: CustomDuplicator）───
+
+class DuplicationConfig(BaseModel):
+    """视频复制配置 — 基于分析结果重组视频."""
+
+    output_path: str = "duplicated.mp4"
+    output_width: int = 1920
+    output_height: int = 1080
+    output_fps: float = 30.0
+
+    # 场景选择
+    scene_selection: str = "all"
+    scene_indices: List[int] = Field(default_factory=list)
+    scene_count: int = 0
+
+    # 转场
+    transition: str = "fade"
+    transition_duration: float = 0.5
+
+    # 排序
+    reorder_mode: str = "original"
+
+    # 音频
+    audio_mode: str = "original"
+    music_path: str = ""
+    music_volume: float = 0.3
+
+    # 字幕
+    burn_subtitles: bool = False
+    subtitle_style: str = "default"
+    subtitle_font_size: int = 24
+    subtitle_color: str = "white"
+
+    # 速度
+    speed_factor: float = 1.0
+
+    # 质量
+    quality: str = "high"
+
+    # 中间文件保留
+    keep_segments: bool = False
+
+
+class DuplicationResult(BaseModel):
+    """视频复制结果."""
+
+    source_video: str = ""
+    config: DuplicationConfig = Field(default_factory=DuplicationConfig)
+    segments_used: List[int] = Field(default_factory=list)
+    segment_paths: List[str] = Field(default_factory=list)
+    output_path: str = ""
+    duration: float = 0.0
+    original_duration: float = 0.0
+    compression_ratio: float = 0.0
+    success: bool = False
+    message: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+# ─── 视频 AI 再生模型（全新生成）───
+
+class SceneGenerationTask(BaseModel):
+    """单个场景的 AI 生成任务."""
+
+    scene_index: int = 0
+    prompt: str = ""                        # 给 AI 的视频生成提示词
+    narration_text: str = ""                # 场景旁白文本
+    duration: float = 5.0                   # 期望生成的视频时长(秒)
+    output_path: str = ""                   # 生成后的文件路径
+    status: str = "pending"                 # pending / generating / done / failed
+    generation_type: str = "video"          # video / image_animation
+    retries: int = 0                        # 已重试次数
+
+
+class RegenerationConfig(BaseModel):
+    """视频 AI 再生配置 — 基于分析结果驱动 AI 生成全新视频."""
+
+    output_path: str = "regenerated.mp4"
+    output_width: int = 1920
+    output_height: int = 1080
+    output_fps: float = 24.0
+
+    # 场景选择
+    scene_selection: str = "all"            # all / indices / first_n / custom
+    scene_indices: List[int] = Field(default_factory=list)
+    scene_count: int = 0
+
+    # 生成策略
+    generation_mode: str = "video_first"    # video_first / image_animation
+    # video_first: 优先 Kling 生成视频片段，失败降级到 FLUX 图片
+    # image_animation: 用 FLUX 生成图片后做 Ken Burns 动态效果
+    preferred_provider: str = "auto"        # 优先使用的视频生成 provider，auto 表示自动选择
+    preferred_model_id: str = ""            # 优先使用的模型ID，为空则使用默认模型
+
+    # 每个场景的最大生成时长（Kling 限制 5-10s）
+    max_clip_duration: float = 5.0
+
+    # 转场
+    transition: str = "fade"
+    transition_duration: float = 0.5
+
+    # 音频
+    audio_mode: str = "tts_narration"      # tts_narration / original / mute / background_music
+    music_path: str = ""
+    music_volume: float = 0.2
+    tts_voice: str = "alloy"                # TTS 语音
+    tts_provider: str = "auto"              # auto / openai / elevenlabs
+
+    # 字幕
+    burn_subtitles: bool = True
+    subtitle_style: str = "default"
+    subtitle_font_size: int = 28
+    subtitle_color: str = "white"
+
+    # 风格
+    style_prefix: str = ""                  # 自动从 style_profile 推导
+    style_suffix: str = "cinematic, high quality, professional"
+
+    # 质量控制
+    quality: str = "high"
+
+    # 重试
+    max_retries: int = 2
+
+    # 中间文件保留
+    keep_segments: bool = False
+    keep_prompts: bool = True               # 保存生成的 prompt 到 txt 文件
+
+    # 扩展参数（传递给底层 Provider 的额外参数，如 aspect_ratio、resolution 等）
+    extra_params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RegenerationResult(BaseModel):
+    """视频 AI 再生结果."""
+
+    source_video: str = ""
+    config: RegenerationConfig = Field(default_factory=RegenerationConfig)
+    tasks: List[SceneGenerationTask] = Field(default_factory=list)
+    generated_segments: List[str] = Field(default_factory=list)   # 成功生成的视频片段
+    failed_scenes: List[int] = Field(default_factory=list)       # 生成失败的场景索引
+    tts_audio_path: str = ""                # TTS 旁白音频路径
+    output_path: str = ""
+    duration: float = 0.0
+    original_duration: float = 0.0
+    success: bool = False
+    message: str = ""
+    total_cost_estimate: float = 0.0        # 估算成本(USD)
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())

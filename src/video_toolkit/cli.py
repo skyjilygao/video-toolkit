@@ -22,6 +22,7 @@ from video_toolkit.composition.composer import VideoComposer
 from video_toolkit.models.composition import CompositionConfig, TransitionType
 from video_toolkit.ai.manager import AIGeneratorManager
 from video_toolkit.ai.base import GenerationRequest, GenerationType
+from video_toolkit.config import config
 
 console = Console()
 
@@ -489,6 +490,271 @@ def test(video_dir):
         console.print(f"  [red]FAIL[/red] - {e}")
 
     console.print("\n[bold green]测试完成![/bold green]")
+
+
+@main.command()
+@click.argument("video_path", type=click.Path(exists=True))
+@click.option("--analysis", "-a", default=None, help="已有分析结果 JSON 路径（不传则重新分析）")
+@click.option("--adapter", "-ad", type=click.Choice(["custom", "openmontage"]), default="custom", help="生成适配器")
+@click.option("--output", "-o", default="regenerated.mp4", help="输出视频路径")
+@click.option("--mode", "-m", type=click.Choice(["video_first", "image_animation"]), default="video_first", help="生成模式")
+@click.option("--width", default=1920, help="输出视频宽度")
+@click.option("--height", default=1080, help="输出视频高度")
+@click.option("--fps", default=24.0, help="输出视频帧率")
+@click.option("--max-duration", default=5.0, help="单个片段最大时长（秒）")
+@click.option("--provider", "-p", default="auto", help="优先使用的视频生成提供商 (auto / kling / runway / openai / local 等)")
+@click.option("--model", "-md", default="", help="要使用的模型ID（如 seedance-2.0-standard、fal-kling-2.0 等，优先级高于provider）")
+@click.option("--scenes", "-s", default="all", help="场景选择: all / first:N / indices:N,M,K")
+@click.option("--style-prefix", default="", help="风格前缀（自动从分析结果推导）")
+@click.option("--style-suffix", default="cinematic, high quality", help="风格后缀")
+@click.option("--audio-mode", type=click.Choice(["tts_narration", "original", "mute", "background_music"]), default="tts_narration", help="音频模式")
+@click.option("--voice", default="alloy", help="TTS 语音名称")
+@click.option("--tts-provider", default="auto", help="TTS 提供商 (auto / openai / elevenlabs)")
+@click.option("--music", default=None, help="背景音乐路径")
+@click.option("--music-volume", default=0.2, help="背景音乐音量")
+@click.option("--transition", "-t", type=click.Choice(["fade", "wipeleft", "wiperight", "slideleft", "slideright", "dissolve"]), default="fade", help="转场效果")
+@click.option("--transition-duration", "-d", default=0.5, help="转场时长秒数")
+@click.option("--quality", type=click.Choice(["high", "medium", "low"]), default="medium", help="视频质量")
+@click.option("--subtitles/--no-subtitles", default=True, help="是否烧录字幕")
+@click.option("--max-retries", default=2, help="每个场景最大重试次数")
+@click.option("--keep-segments", is_flag=True, help="保留中间生成片段")
+@click.option("--dry-run", is_flag=True, help="仅显示 prompt 和视频信息，不实际生成")
+def regenerate(video_path, analysis, adapter, output, mode, width, height, fps,
+               max_duration, provider, model, scenes, style_prefix, style_suffix, audio_mode,
+               voice, tts_provider, music, music_volume, transition,
+               transition_duration, quality, subtitles, max_retries,
+               keep_segments, dry_run):
+    """AI 再生视频 - 基于分析结果生成全新画面的视频.
+
+    与 ``duplicate`` 命令不同，本命令通过 AI 生成全新的画面内容：
+
+    \b
+    - 原视频的画面不会被复用
+    - 每个场景由 AI 独立生成新的视频片段
+    - 支持 Kling (视频) 和 FLUX (图片+Ken Burns) 两种生成方式
+    - 支持自定义或 OpenMontage 适配器的 prompt 引擎
+
+    典型工作流::
+
+        # 分析并再生
+        video-toolkit analyze input.mp4 -o analysis.json
+        video-toolkit regenerate input.mp4 -a analysis.json -o output.mp4
+
+        # 仅显示将会使用的 prompt（dry-run）
+        video-toolkit regenerate input.mp4 --dry-run
+
+        # 指定场景
+        video-toolkit regenerate input.mp4 -s first:5 -o output.mp4
+        video-toolkit regenerate input.mp4 -s indices:0,2,4 -o output.mp4
+    """
+    print_banner()
+
+    try:
+        # 1. 加载分析结果
+        if analysis:
+            with open(analysis, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            from video_toolkit.models.analysis import AnalysisBrief
+            brief = AnalysisBrief.model_validate(data)
+            console.print(f"[dim]已加载分析结果: {analysis}[/dim]")
+        else:
+            console.print("[dim]正在进行视频分析...[/dim]")
+            from video_toolkit.analysis import AnalysisManager
+            mgr = AnalysisManager()
+            analyzer = mgr.get_adapter("auto" if adapter == "custom" else adapter, video_path)
+            brief = analyzer.analyze(depth="standard")
+            console.print(f"[dim]分析完成: {brief.total_scenes} 个场景[/dim]")
+
+        # 2. 解析场景选择
+        scene_selection = "all"
+        scene_indices = []
+        scene_count = 0
+        if scenes != "all":
+            if scenes.startswith("first:"):
+                scene_selection = "first_n"
+                scene_count = int(scenes.split(":")[1])
+            elif scenes.startswith("indices:"):
+                scene_selection = "indices"
+                scene_indices = [int(x) for x in scenes.split(":")[1].split(",")]
+
+        # 3. 构建配置
+        from video_toolkit.models.analysis import RegenerationConfig
+        config = RegenerationConfig(
+            output_path=output,
+            output_width=width,
+            output_height=height,
+            output_fps=fps,
+            generation_mode=mode,
+            preferred_provider=provider,
+            preferred_model_id=model,
+            max_clip_duration=max_duration,
+            scene_selection=scene_selection,
+            scene_indices=scene_indices,
+            scene_count=scene_count,
+            audio_mode=audio_mode,
+            tts_voice=voice,
+            tts_provider=tts_provider,
+            music_path=music or "",
+            music_volume=music_volume,
+            transition=transition,
+            transition_duration=transition_duration,
+            quality=quality,
+            burn_subtitles=subtitles,
+            max_retries=max_retries,
+            keep_segments=keep_segments,
+            keep_prompts=True,
+        )
+        config.style_suffix = style_suffix
+
+        if not style_prefix:
+            config.style_prefix = _derive_style_prefix(brief)
+
+        # 4. 获取适配器
+        from video_toolkit.generation import GenerationManager, PromptEngine
+        gen_mgr = GenerationManager()
+        reg_adapter = gen_mgr.get_adapter(adapter, video_path, brief)
+
+        # 5. dry-run 模式
+        if dry_run:
+            console.print("[bold yellow]DRY-RUN 模式 — 仅显示信息[/bold yellow]\n")
+            engine = PromptEngine(
+                style_profile=brief.style_profile,
+                style_prefix=config.style_prefix,
+                style_suffix=config.style_suffix,
+            )
+
+            ok, msg = reg_adapter.validate_environment()
+            console.print(f"环境验证: [green]{msg}[/green]" if ok else f"[red]{msg}[/red]")
+
+            scene_ids = reg_adapter._filter_scenes(config)
+            selected_scenes = [brief.scenes[i] for i in scene_ids if i < len(brief.scenes)]
+
+            console.print(f"\n共 [bold]{len(selected_scenes)}[/bold] 个场景:")
+            for scene in selected_scenes[:20]:  # 最多显示 20 个
+                prompt = engine.build_scene_prompt(scene)
+                narration = scene.narration_text or scene.description or ""
+                console.print(f"\n  [cyan]场景 #{scene.scene_index}[/cyan] "
+                              f"({scene.start_time:.1f}s-{scene.end_time:.1f}s)")
+                console.print(f"  Prompt: {prompt}")
+                if narration:
+                    console.print(f"  旁白: {narration[:100]}")
+
+            cost = reg_adapter.estimate_cost(config, len(selected_scenes))
+            console.print(f"\n[dim]预估成本: ~${cost:.2f}[/dim]")
+            return
+
+        # 6. 执行生成
+        result = reg_adapter.regenerate(config)
+
+        console.print()
+        if result.success:
+            console.print(f"[bold green]视频再生成功![/bold green]")
+            console.print(f"  输出: {result.output_path}")
+            console.print(f"  时长: {result.duration:.1f}s (原视频: {result.original_duration:.1f}s)")
+            console.print(f"  成功片段: {len(result.generated_segments)}")
+            if result.failed_scenes:
+                console.print(f"  [yellow]失败场景: {result.failed_scenes}[/yellow]")
+            console.print(f"  预估成本: ~${result.total_cost_estimate:.2f}")
+        else:
+            console.print(f"[red]视频再生失败: {result.message}[/red]")
+            sys.exit(1)
+
+    except Exception as e:
+        console.print(f"[red]视频再生失败: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def _derive_style_prefix(brief) -> str:
+    """从分析结果推导风格前缀."""
+    parts = []
+    if brief.style_profile:
+        mood = brief.style_profile.color_palette.get("overall_mood", "")
+        if mood:
+            parts.append(f"{mood} style")
+
+        if brief.pacing:
+            if brief.pacing.pacing_style in ("dynamic_social", "rapid_fire"):
+                parts.append("high energy")
+            elif brief.pacing.pacing_style == "slow_contemplative":
+                parts.append("slow and contemplative")
+
+    return ", ".join(parts) if parts else ""
+
+
+@cli.command()
+@click.option("--type", "-t", "model_type", type=click.Choice(["all", "video", "image", "audio"]), default="all", help="模型类型过滤")
+def list_models(model_type):
+    """列出所有可用的AI模型."""
+    console.print("\n[bold cyan]可用的AI模型[/bold cyan]")
+    
+    if model_type in ("all", "video"):
+        video_models = config.get_video_models()
+        if video_models:
+            table = Table(title="视频生成模型", show_header=True)
+            table.add_column("ID", style="cyan", min_width=25)
+            table.add_column("名称", style="green", min_width=20)
+            table.add_column("Provider", style="yellow", min_width=15)
+            table.add_column("描述", style="white", min_width=30)
+            for model in video_models:
+                # 检查API Key是否已配置
+                api_key = config.get_api_key_for_provider(model["provider"])
+                status = "[green]✓[/green]" if api_key else "[yellow]![/yellow]"
+                table.add_row(
+                    f"{model['id']} {status}",
+                    model["name"],
+                    model["providerDisplayName"],
+                    model.get("description", "")
+                )
+            console.print(table)
+        else:
+            console.print("[dim]没有找到可用的视频生成模型[/dim]")
+    
+    if model_type in ("all", "image"):
+        image_models = config.get_image_models()
+        if image_models:
+            table = Table(title="图片生成模型", show_header=True)
+            table.add_column("ID", style="cyan", min_width=25)
+            table.add_column("名称", style="green", min_width=20)
+            table.add_column("Provider", style="yellow", min_width=15)
+            table.add_column("描述", style="white", min_width=30)
+            for model in image_models:
+                api_key = config.get_api_key_for_provider(model["provider"])
+                status = "[green]✓[/green]" if api_key else "[yellow]![/yellow]"
+                table.add_row(
+                    f"{model['id']} {status}",
+                    model["name"],
+                    model["providerDisplayName"],
+                    model.get("description", "")
+                )
+            console.print(table)
+        else:
+            console.print("[dim]没有找到可用的图片生成模型[/dim]")
+    
+    if model_type in ("all", "audio"):
+        audio_models = config.get_audio_models()
+        if audio_models:
+            table = Table(title="音频生成模型", show_header=True)
+            table.add_column("ID", style="cyan", min_width=25)
+            table.add_column("名称", style="green", min_width=20)
+            table.add_column("Provider", style="yellow", min_width=15)
+            table.add_column("描述", style="white", min_width=30)
+            for model in audio_models:
+                api_key = config.get_api_key_for_provider(model["provider"])
+                status = "[green]✓[/green]" if api_key else "[yellow]![/yellow]"
+                table.add_row(
+                    f"{model['id']} {status}",
+                    model["name"],
+                    model["providerDisplayName"],
+                    model.get("description", "")
+                )
+            console.print(table)
+        else:
+            console.print("[dim]没有找到可用的音频生成模型[/dim]")
+    
+    console.print("\n[dim]✓ = API Key已配置，! = API Key未配置[/dim]")
+    console.print("[dim]使用方式：在regenerate命令中添加 --model <模型ID>[/dim]")
 
 
 if __name__ == "__main__":

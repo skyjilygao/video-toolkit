@@ -35,6 +35,10 @@ class CompositionConfig(BaseModel):
     music_path: str = ""
     music_volume: float = 0.3
     segment_order: str = "original"
+    burn_subtitles: bool = False
+    subtitle_font_size: int = 24
+    subtitle_color: str = "white"
+    audio_mode: str = "original"  # "original" | "mute" | "tts_narration"
 
 
 class CompositionResult(BaseModel):
