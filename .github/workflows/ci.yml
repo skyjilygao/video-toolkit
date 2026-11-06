@@ -13,7 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.12"]
+        # 注: ubuntu-26.04 运行器已不提供 3.9/3.10（EOL），
+        # 因此选择当前受支持且可用的 3.12 / 3.13；包本身仍声明支持 >=3.9
+        python-version: ["3.12", "3.13"]
 
     steps:
       - name: 检出代码
