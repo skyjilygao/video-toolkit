@@ -683,7 +683,7 @@ def _derive_style_prefix(brief) -> str:
     return ", ".join(parts) if parts else ""
 
 
-@cli.command()
+@main.command()
 @click.option("--type", "-t", "model_type", type=click.Choice(["all", "video", "image", "audio"]), default="all", help="模型类型过滤")
 def list_models(model_type):
     """列出所有可用的AI模型."""
