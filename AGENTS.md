@@ -18,10 +18,12 @@
 ## 1. 项目概述
 
 **video-toolkit** 是一个视频拆解与生成工具，核心功能包括：
+- 视频源解析（本地路径 / YouTube URL（yt-dlp）/ HTTP(S) 直链统一接入，自动校验与失败重试）
 - 视频分析（场景检测、关键帧提取、语音转录、运动分类、节奏分析）
 - 视频拆解（按场景/间隔切割）
 - 视频合成（片段拼接+转场）
 - AI 辅助生成（图片、视频、音频）
+- 全流程编排 Dry-Run（源获取 → 分析 → 拆解 → 生成计划；输出 `llm_calls.json` 等大模型调用参数，不调用大模型、不拼接）
 
 **核心设计理念**：适配器模式 — 分析功能通过 `BaseAnalysisAdapter` 抽象基类定义统一接口，不同后端（custom / openmontage）各自实现。
 
@@ -49,13 +51,17 @@ video-toolkit/
 │       │   ├── exporter.py     # AnalysisExporter（报告文件导出）
 │       │   ├── custom_adapter.py  # 纯本地实现适配器
 │       │   └── openmontage_adapter.py  # OpenMontage 适配器（含自动安装）
+│       ├── generation/     # 生成链（适配器 + PromptEngine + 多模型候选链）
+│       ├── pipeline/       # 全流程编排（dry_run，Dry-Run 全流程）
+│       ├── sources/        # 视频源解析（local / youtube / direct）
 │       ├── models/         # Pydantic 数据模型
 │       │   ├── analysis.py     # AnalysisBrief, SceneBrief, TranscriptResult 等
 │       │   ├── video.py        # VideoMetadata 等
 │       │   └── composition.py  # CompositionConfig 等
 │       ├── composition/    # 视频合成
 │       ├── decomposition/  # 视频拆解
-│       └── ai/             # AI 生成服务（FAL, OpenAI, ElevenLabs）
+│       ├── ai/             # AI 生成服务（FAL, OpenAI, ElevenLabs）
+│       └── utils/          # 工具函数（ffprobe 封装等）
 ├── tests/                  # pytest 测试
 └── docs/                   # 额外文档
 ```
@@ -63,7 +69,9 @@ video-toolkit/
 **规则**：
 - 所有源代码必须在 `src/video_toolkit/` 下，不允许直接在根目录放模块
 - 新增适配器必须放在 `src/video_toolkit/analysis/` 下并注册到 `manager.py`
+- 新增视频源必须放在 `src/video_toolkit/sources/` 下，并接入 `resolve_video_source()` 的尝试链（Local → YouTube → DirectUrl）
 - 模型变更必须更新 `models/analysis.py` 中对应的 Pydantic 类
+- 新增顶层模块或 CLI 命令后，必须同步更新本结构树与文末速查表
 - 禁止修改 `src/video_toolkit.egg-info/` 目录（自动生成）
 
 ---
@@ -149,6 +157,26 @@ video-toolkit/
 - 连续下划线合并：`re.sub(r'_+', '_', safe)`
 - 空文件名降级为 `"untitled"`
 
+### 5.3 Dry-Run 全流程输出结构
+
+`video-toolkit dryrun` 在 `--output-dir` 下按固定结构落盘，供审计与复用：
+
+```
+<output_dir>/
+├── README.md                  # 流程摘要
+├── downloaded/                # 在线视频下载目录
+├── analysis/<video_basename>/ # 分析报告（analysis.json / summary.md / keyframes/...）
+├── decomposition/             # 拆解索引 + 原画面片段
+└── generation/
+    ├── llm_calls.json         # 全部大模型调用参数（含每场景 prompt）
+    ├── llm_calls.md           # 可读版
+    └── prompts.txt            # 场景 prompt 列表
+```
+
+**规则**：
+- 全流程产物必须写入 `--output-dir`；不调用大模型（无真实请求）、不执行 FFmpeg 拼接
+- 大模型调用参数以 `generation/llm_calls.json` 为准（含每个候选的 prompt、分辨率、时长、extra_params）
+
 ---
 
 ## 6. 依赖管理规则
@@ -163,7 +191,10 @@ video-toolkit/
 |---|---|
 | audio | 音频分析（librosa, soundfile） |
 | whisper | 语音转录（faster-whisper） |
+| detection | 场景检测（scenedetect） |
+| local-tts | 本地语音合成（pyttsx3） |
 | openmontage | OpenMontage 完整工具链 |
+| youtube | 在线视频源（yt-dlp, youtube-transcript-api） |
 | ai | AI 生成服务 |
 | dev | 开发工具（测试/Lint） |
 | all | 全部运行时可选依赖 |
@@ -179,6 +210,8 @@ video-toolkit/
 
 ### 7.1 命令结构
 - 使用 `click` 框架，命令组通过 `@main.command()` 定义
+- 现有命令：`analyze` / `decompose` / `compose` / `ai` / `info` / `batch_decompose` / `test` / `dryrun` / `list_models`
+- 新增命令须同步更新 `README.md` 与文末速查表
 - 命令帮助文本使用 `\b` 保持段落格式
 - 所有路径参数使用 `type=click.Path(exists=True)` 验证
 
@@ -200,7 +233,8 @@ video-toolkit/
 ## 8. 测试规则
 
 ### 8.1 测试文件放置
-- 测试文件在 `tests/` 目录下，模块结构镜像 `src/`
+- 测试文件统一放在 `tests/` 目录下，按功能域组织：`test_e2e_pipeline.py`（全链路）、`test_generation.py`（生成链）、`test_sources/`（视频源）
+- 新增模块级测试时，可在 `tests/` 下镜像 `src/` 结构建子目录（如 `tests/test_sources/`）
 - 测试文件命名：`test_*.py`
 - 测试函数命名：`test_*`
 
@@ -210,7 +244,7 @@ video-toolkit/
 python -m pytest
 
 # 指定模块
-python -m pytest tests/test_core/
+python -m pytest tests/test_sources/
 
 # 覆盖率
 python -m pytest --cov=video_toolkit
@@ -281,7 +315,8 @@ CLI 内置 `test` 命令执行端到端验证，按阶段验证：元数据 → 
 ## 12. 文档维护
 
 ### 12.1 必须同步修改的文档
-- 新增 CLI 命令 → 更新 `README.md`
+- 新增 CLI 命令 → 更新 `README.md` + `AGENTS.md` 文末速查表
+- 新增顶层模块 → 更新 `AGENTS.md` 第 2 节结构树
 - 新增数据模型 → 更新 `AGENTS.md` 数据模型部分
 - 新增依赖 → 更新 `pyproject.toml` + `requirements.txt` + `README.md`
 - 修改导出结构 → 更新 `AGENTS.md` 第 5 节
@@ -309,6 +344,7 @@ CLI 内置 `test` 命令执行端到端验证，按阶段验证：元数据 → 
 | 提交前完整检查 | `make check` |
 | 清理缓存 | `make clean` |
 | 分析视频 | `video-toolkit analyze video.mp4 --report-dir ./output` |
+| 全流程 Dry-Run | `video-toolkit dryrun <video\|url> -o ./dryrun_output` |
 | 查看可用模型 | `video-toolkit list-models` |
 | 查看版本 | `video-toolkit --version` |
 | 适配器列表 | 查看 `src/video_toolkit/analysis/` 下注册器 |
