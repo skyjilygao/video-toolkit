@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "视频拆解与生成工具 - Video Decomposition and Generation Toolkit"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.9"
+requires-python = ">=3.14.5"
 authors = [
     { name = "Video Toolkit" },
 ]
@@ -19,10 +19,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.14",
     "Topic :: Multimedia :: Video",
 ]
@@ -48,7 +44,7 @@ ai = ["torch>=2.0.0", "transformers>=4.30.0"]
 whisper = ["faster-whisper>=1.0.0"]
 youtube = ["youtube-transcript-api>=0.6.0", "yt-dlp>=2024.0.0"]
 openmontage = ["faster-whisper>=1.0.0", "scenedetect>=0.6.2", "av>=11"]
-dev = ["pytest>=7.0", "pytest-cov>=4.0", "black>=23.0", "ruff>=0.1.0", "mypy>=1.0"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "black>=23.0", "ruff>=0.1.0", "mypy>=2.0"]
 all = ["librosa>=0.10.0", "soundfile>=0.12.0", "scenedetect>=0.6.2", "pyttsx3>=2.90", "faster-whisper>=1.0.0", "youtube-transcript-api>=0.6.0"]
 
 [project.scripts]
@@ -69,19 +65,20 @@ video_toolkit = ["py.typed"]
 # ===== 开发工具配置 =====
 [tool.black]
 line-length = 100
-target-version = ["py39", "py310", "py311", "py312"]
+target-version = ["py314"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "A"]
 ignore = ["E501"]
 
 [tool.mypy]
-# 注: mypy 2.x 不再支持 python_version=3.9（检查器要求 3.10+），
-# 因此改用运行解释器的版本进行检查；项目运行要求仍为 Python >= 3.9
+# 项目运行要求为 Python >= 3.14.5；按最低支持大版本（3.14）的语义进行类型检查，
+# 保证不同环境（解释器版本）下检查结果一致
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
 

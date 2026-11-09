@@ -2,11 +2,11 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Optional
+from enum import StrEnum
+from typing import Any
 
 
-class GenerationType(str, Enum):
+class GenerationType(StrEnum):
     """生成类型."""
 
     IMAGE = "image"
@@ -25,7 +25,7 @@ class GenerationRequest:
     height: int = 1024
     duration: float = 5.0
     negative_prompt: str = ""
-    seed: Optional[int] = None
+    seed: int | None = None
     extra_params: dict[str, Any] = field(default_factory=dict)
 
 

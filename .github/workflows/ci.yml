@@ -13,9 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 注: ubuntu-26.04 运行器已不提供 3.9/3.10（EOL），
-        # 因此选择当前受支持且可用的 3.12 / 3.13；包本身仍声明支持 >=3.9
-        python-version: ["3.12", "3.13"]
+        # 项目最低要求 Python >= 3.14.5（见 pyproject.toml），
+        # 测试矩阵使用最低支持大版本 3.14（setup-python 解析为最新 3.14.x，满足 >= 3.14.5）
+        python-version: ["3.14"]
 
     steps:
       - name: 检出代码

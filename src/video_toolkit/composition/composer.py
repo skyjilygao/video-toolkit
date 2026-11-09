@@ -3,7 +3,6 @@
 import os
 import subprocess
 import tempfile
-from typing import Optional
 
 from rich.console import Console
 
@@ -39,7 +38,7 @@ class VideoComposer:
     def compose(
         self,
         segment_paths: list[str],
-        config: Optional[CompositionConfig] = None,
+        config: CompositionConfig | None = None,
     ) -> CompositionResult:
         """合成视频片段."""
         if config is None:
@@ -119,7 +118,8 @@ class VideoComposer:
         except subprocess.TimeoutExpired:
             return CompositionResult(config=config, success=False, message="拼接超时")
         finally:
-            os.path.exists(list_file) and os.remove(list_file)
+            if os.path.exists(list_file):
+                os.remove(list_file)
 
     def _has_audio_stream(self, video_path: str) -> bool:
         """检查视频文件是否包含音频流."""
@@ -195,7 +195,7 @@ class VideoComposer:
 
         cmd.extend(["-filter_complex", filter_complex])
         cmd.extend(["-map", prev_v])
-        if all_have_audio:
+        if all_have_audio and prev_a is not None:
             cmd.extend(["-map", prev_a])
         cmd.extend(["-c:v", "libx264", "-preset", "fast", "-crf", "18"])
         if all_have_audio:

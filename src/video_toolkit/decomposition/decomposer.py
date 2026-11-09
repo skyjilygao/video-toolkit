@@ -4,7 +4,7 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from rich.console import Console
 
@@ -22,7 +22,7 @@ console = Console()
 class VideoDecomposer:
     """视频拆解器."""
 
-    def __init__(self, video_path: str, output_dir: Optional[str] = None):
+    def __init__(self, video_path: str, output_dir: str | None = None):
         self.video_path = os.path.abspath(video_path)
         if not os.path.exists(self.video_path):
             raise FileNotFoundError(f"视频文件不存在: {self.video_path}")
@@ -39,7 +39,7 @@ class VideoDecomposer:
 
     def decompose_by_scenes(
         self,
-        analysis_result: Optional[VideoAnalysisResult] = None,
+        analysis_result: VideoAnalysisResult | None = None,
         re_encode: bool = False,
     ) -> DecompositionResult:
         """按场景拆解视频."""
@@ -136,7 +136,7 @@ class VideoDecomposer:
     def decompose_custom(
         self,
         time_ranges: list[tuple],
-        tags_list: Optional[list[list[str]]] = None,
+        tags_list: list[list[str]] | None = None,
         re_encode: bool = False,
     ) -> DecompositionResult:
         """按自定义时间范围拆解."""
@@ -263,10 +263,10 @@ class VideoDecomposer:
     def _save_index(
         self,
         result: DecompositionResult,
-        analysis_result: Optional[VideoAnalysisResult] = None,
+        analysis_result: VideoAnalysisResult | None = None,
     ):
         """保存拆解索引文件."""
-        index = {
+        index: dict[str, Any] = {
             "source_video": result.source_video,
             "output_dir": result.output_dir,
             "total_segments": result.total_segments,

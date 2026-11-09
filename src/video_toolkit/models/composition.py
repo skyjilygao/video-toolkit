@@ -1,11 +1,11 @@
 """合成配置与结果模型."""
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class TransitionType(str, Enum):
+class TransitionType(StrEnum):
     """转场类型."""
 
     FADE = "fade"

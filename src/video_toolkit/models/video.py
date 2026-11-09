@@ -1,11 +1,11 @@
 """视频元数据模型."""
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class VideoFormat(str, Enum):
+class VideoFormat(StrEnum):
     """视频格式枚举."""
 
     MP4 = "mp4"

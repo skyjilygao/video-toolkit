@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 
@@ -28,6 +29,9 @@ from video_toolkit.models.analysis import (
     SceneGenerationTask,
 )
 from video_toolkit.utils.ffprobe_utils import get_video_info
+
+if TYPE_CHECKING:
+    from OpenMontage.tools.video.video_selector import VideoSelector
 
 console = Console()
 
@@ -49,7 +53,7 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
         super().__init__(video_path=video_path, brief=brief)
         self.work_dir = work_dir or tempfile.mkdtemp(prefix="vt_om_regen_")
         self._openmontage_path: str | None = None
-        self._video_selector = None
+        self._video_selector: VideoSelector | None = None
 
     # ── 环境验证 ──
 
@@ -88,7 +92,7 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
                 )
 
             # 检查 FFmpeg
-            ffmpeg_path = shutil.which("ffmpeg")
+            ffmpeg_path = shutil.which("ffmpeg") or "ffmpeg"
             if not ffmpeg_path:
                 return False, "未找到 FFmpeg，请安装 FFmpeg 并确保在 PATH 中。"
 
@@ -139,7 +143,7 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
             from OpenMontage.tools.video.video_selector import VideoSelector
 
             self._video_selector = VideoSelector()
-            prompt_style_context = self._build_style_context()
+            prompt_style_context = self._build_style_context(config)
 
             # 4. 生成所有场景的 prompt
             om_scenes = self._convert_to_om_scenes(scenes)
@@ -198,20 +202,28 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
 
     # ── 辅助方法 ──
 
-    def _build_style_context(self) -> dict:
-        """构建 OpenMontage 风格上下文."""
-        style = {}
+    def _build_style_context(self, config: RegenerationConfig) -> dict:
+        """构建 OpenMontage 风格上下文.
+
+        OpenMontage 的 build_shot_prompt 消费以下键:
+        - mood: 整体情绪（取自 color_palette.overall_mood）
+        - visual_language.aesthetic: 视觉美学提示
+        - generation_prefix / generation_suffix: 风格前后缀
+        """
+        style: dict[str, Any] = {}
         if self.brief.style_profile:
-            style["mood"] = self.brief.style_profile.mood or ""
+            palette = self.brief.style_profile.color_palette
+            style["mood"] = palette.get("overall_mood", "") or ""
             style["visual_language"] = {
-                "aesthetic": self.brief.style_profile.visual_style or "",
-                "color_palette": self.brief.style_profile.color_palette or [],
+                # video-toolkit 无独立 visual_style 字段，用排版观察作为最接近的视觉风格提示
+                "aesthetic": self.brief.style_profile.typography_observed or "",
+                "color_palette": palette,
             }
-        # 添加自定义前后缀
-        if self.brief.style_prefix:
-            style["generation_prefix"] = self.brief.style_prefix
-        if self.brief.style_suffix:
-            style["generation_suffix"] = self.brief.style_suffix
+        # 添加自定义前后缀（位于 RegenerationConfig，而非 AnalysisBrief）
+        if config.style_prefix:
+            style["generation_prefix"] = config.style_prefix
+        if config.style_suffix:
+            style["generation_suffix"] = config.style_suffix
         return style
 
     def _convert_to_om_scenes(self, scenes: list) -> list[dict]:
@@ -325,7 +337,7 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
         """为所有场景生成 AI 视频片段."""
         tasks: list[SceneGenerationTask] = []
 
-        for i, (prompt_task, scene) in enumerate(zip(prompt_tasks, scenes)):
+        for i, (prompt_task, scene) in enumerate(zip(prompt_tasks, scenes, strict=False)):
             task = SceneGenerationTask(
                 scene_index=scene.scene_index,
                 prompt=prompt_task["prompt"],
@@ -371,6 +383,9 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
         # 添加用户指定的 preferred provider
         if config.preferred_provider and config.preferred_provider != "auto":
             inputs["preferred_provider"] = config.preferred_provider
+
+        if self._video_selector is None:
+            raise RuntimeError("VideoSelector 未初始化（应在 regenerate 流程中完成初始化）")
 
         result = self._video_selector.execute(inputs)
 
@@ -433,7 +448,7 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
             return
 
         tmp_path = clip_path + ".norm.mp4"
-        ffmpeg_path = shutil.which("ffmpeg")
+        ffmpeg_path = shutil.which("ffmpeg") or "ffmpeg"
 
         crf_map = {"high": "18", "medium": "23", "low": "28"}
         crf = crf_map.get(config.quality, "20")
@@ -558,7 +573,7 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
     ):
         """将 TTS 旁白混入视频."""
         tmp_output = video_path + ".audio.mp4"
-        ffmpeg_path = shutil.which("ffmpeg")
+        ffmpeg_path = shutil.which("ffmpeg") or "ffmpeg"
 
         cmd = [
             ffmpeg_path,
@@ -620,7 +635,7 @@ class OpenGenerationAdapter(BaseGenerationAdapter):
     def _get_duration(path: str) -> float:
         try:
             info = get_video_info(path)
-            return info.get("duration", 0.0)
+            return float(info.get("duration", 0.0))
         except Exception:
             return 0.0
 

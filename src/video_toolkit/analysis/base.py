@@ -100,7 +100,7 @@ class BaseAnalysisAdapter(ABC):
         # ④ 运动分类（如果子类未重写，使用启发式方法）
         motion_results = self.classify_motion(brief.scenes)
         if motion_results:
-            for scene, motion in zip(brief.scenes, motion_results):
+            for scene, motion in zip(brief.scenes, motion_results, strict=False):
                 scene.motion_type = motion.get("motion_type", "unknown")
                 scene.flow_variance = motion.get("flow_variance", -1.0)
 

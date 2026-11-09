@@ -82,7 +82,7 @@ video-toolkit/
 - 信息必须用中文沟通，代码注释可中英混合
 
 ### 3.3 代码风格
-- Python 版本最低要求：3.9（`pyproject.toml` 中 `requires-python = ">=3.9"`）
+- Python 版本最低要求：3.14.5（`pyproject.toml` 中 `requires-python = ">=3.14.5"`）
 - 行宽：100 字符（`black` 和 `ruff` 统一配置）
 - 类型注解：所有公共函数必须有类型提示
 - 字符串风格：优先使用 f-string，避免 % 格式化

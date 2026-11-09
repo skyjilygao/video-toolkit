@@ -1,7 +1,5 @@
 """AI 生成器管理器 - 多 Provider 调度."""
 
-from typing import Optional
-
 from rich.console import Console
 
 from video_toolkit.ai.base import (
@@ -123,7 +121,7 @@ class AIGeneratorManager:
     def generate(
         self,
         request: GenerationRequest,
-        provider: Optional[str] = None,
+        provider: str | None = None,
     ) -> GenerationResult:
         """执行生成."""
         if provider:
@@ -151,6 +149,6 @@ class AIGeneratorManager:
         """列出已注册的 Provider."""
         return list(self._generators.keys())
 
-    def get_provider(self, name: str) -> Optional[BaseAIGenerator]:
+    def get_provider(self, name: str) -> BaseAIGenerator | None:
         """获取指定 Provider."""
         return self._generators.get(name)

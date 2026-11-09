@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import tempfile
+from typing import cast
 
 import cv2
 import numpy as np
@@ -41,7 +42,7 @@ def _run_ffprobe(video_path: str) -> dict:
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        return json.loads(result.stdout)
+        return cast(dict, json.loads(result.stdout))
     except Exception:
         return {}
 
@@ -55,7 +56,10 @@ def _extract_dominant_colors(image: np.ndarray, k: int = 5) -> list[str]:
     try:
         pixels = image.reshape(-1, 3).astype(np.float32)
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-        _, labels, centers = cv2.kmeans(pixels, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+        # OpenCV API 允许 bestLabels=None（输出型参数），但上游 stub 未提供 None 重载
+        _, labels, centers = cv2.kmeans(  # type: ignore[call-overload]
+            pixels, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS
+        )
         counts = np.bincount(labels.flatten())
         dominant = centers[np.argsort(-counts)]
         return [f"#{int(c[2]):02x}{int(c[1]):02x}{int(c[0]):02x}" for c in dominant]
@@ -311,7 +315,8 @@ class CustomAdapter(BaseAnalysisAdapter):
                 gray_a = cv2.cvtColor(frame_a, cv2.COLOR_BGR2GRAY)
                 gray_b = cv2.cvtColor(frame_b, cv2.COLOR_BGR2GRAY)
 
-                flow = cv2.calcOpticalFlowFarneback(
+                # OpenCV API 允许 flow=None（输出型参数），但上游 stub 未提供 None 重载
+                flow = cv2.calcOpticalFlowFarneback(  # type: ignore[call-overload]
                     gray_a,
                     gray_b,
                     None,

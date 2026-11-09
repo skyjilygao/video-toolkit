@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import cast
 
 from rich.console import Console
 
@@ -463,7 +464,7 @@ class OpenMontageAdapter(BaseAnalysisAdapter):
                     for s in scenes
                 ],
             )
-            return results
+            return cast(list[dict], results)
 
         except Exception as e:
             console.print(f"[dim]OpenMontage 运动分类失败: {e}，使用降级[/dim]")

@@ -23,7 +23,7 @@ def _find_ffmpeg() -> str:
                 timeout=5,
             )
             return name
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+        except FileNotFoundError, subprocess.TimeoutExpired:
             continue
     raise RuntimeError("未找到 FFmpeg，请先安装并添加到 PATH")
 

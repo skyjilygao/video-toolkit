@@ -5,7 +5,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Any, cast
 
 import cv2
 import numpy as np
@@ -31,8 +31,8 @@ def _run_ffprobe(video_path: str) -> dict:
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        return json.loads(result.stdout)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
+        return cast(dict[Any, Any], json.loads(result.stdout))
+    except subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError:
         return {}
 
 
@@ -41,7 +41,10 @@ def _extract_dominant_colors(image: np.ndarray, k: int = 5) -> list[str]:
     try:
         pixels = image.reshape(-1, 3).astype(np.float32)
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-        _, labels, centers = cv2.kmeans(pixels, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+        # OpenCV API 允许 bestLabels=None（输出型参数），但上游 stub 未提供 None 重载
+        _, labels, centers = cv2.kmeans(  # type: ignore[call-overload]
+            pixels, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS
+        )
         counts = np.bincount(labels.flatten())
         dominant = centers[np.argsort(-counts)]
         return [f"#{int(c[2]):02x}{int(c[1]):02x}{int(c[0]):02x}" for c in dominant]
@@ -231,7 +234,7 @@ class VideoAnalyzer:
         return scenes
 
     def extract_keyframes(
-        self, count: int = 10, output_dir: Optional[str] = None
+        self, count: int = 10, output_dir: str | None = None
     ) -> list[KeyframeInfo]:
         """提取关键帧."""
         if output_dir is None:
@@ -274,7 +277,7 @@ class VideoAnalyzer:
 
     def detect_style(self, scenes: list[SceneInfo]) -> list[str]:
         """检测视频风格标签."""
-        tags = []
+        tags: list[str] = []
 
         if not scenes:
             return tags
@@ -321,7 +324,7 @@ class VideoAnalyzer:
         scene_threshold: float = 30.0,
         min_scene_duration: float = 1.0,
         keyframe_count: int = 10,
-        keyframe_dir: Optional[str] = None,
+        keyframe_dir: str | None = None,
     ) -> VideoAnalysisResult:
         """完整分析视频."""
         console.print("[bold blue]开始视频分析...[/bold blue]")

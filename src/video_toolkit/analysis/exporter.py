@@ -235,9 +235,10 @@ class AnalysisExporter:
     def save_pacing(self) -> str:
         """保存节奏特征."""
         file_path = os.path.join(self.output_dir, "pacing.json")
+        pace = self.brief.pacing
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(
-                self.brief.pacing.model_dump(),
+                pace.model_dump() if pace else {},
                 f,
                 ensure_ascii=False,
                 indent=2,

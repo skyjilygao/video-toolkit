@@ -43,7 +43,7 @@ class KeyframeInfo(BaseModel):
 class VideoAnalysisResult(BaseModel):
     """视频分析结果（基础版，向后兼容）."""
 
-    metadata: VideoMetadata = Field(default=None)
+    metadata: VideoMetadata = Field(default_factory=VideoMetadata)
     scenes: list[SceneInfo] = Field(default_factory=list)
     keyframes: list[KeyframeInfo] = Field(default_factory=list)
     avg_brightness: float = 0.0

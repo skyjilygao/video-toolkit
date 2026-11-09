@@ -3,7 +3,6 @@
 import os
 import time
 from pathlib import Path
-from typing import Optional
 
 import requests
 
@@ -23,7 +22,7 @@ class OpenAICompatibleGenerator(BaseAIGenerator):
         api_key: str,
         base_url: str,
         default_model_id: str = "",
-        supported_types: Optional[list[GenerationType]] = None,
+        supported_types: list[GenerationType] | None = None,
         **kwargs,
     ):
         super().__init__(api_key, **kwargs)

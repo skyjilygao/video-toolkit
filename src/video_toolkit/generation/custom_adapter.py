@@ -17,12 +17,13 @@ import shutil
 import subprocess
 import tempfile
 import time
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 
 from video_toolkit.ai.base import GenerationRequest, GenerationType
 from video_toolkit.composition.composer import VideoComposer
-from video_toolkit.config import config
+from video_toolkit.config import config as global_config
 from video_toolkit.generation.base import BaseGenerationAdapter
 from video_toolkit.generation.prompt_engine import PromptEngine
 from video_toolkit.models.analysis import (
@@ -32,6 +33,9 @@ from video_toolkit.models.analysis import (
     SceneGenerationTask,
 )
 from video_toolkit.utils.ffprobe_utils import get_video_info
+
+if TYPE_CHECKING:
+    from video_toolkit.ai.manager import AIGeneratorManager
 
 console = Console()
 
@@ -55,7 +59,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
     ):
         super().__init__(video_path=video_path, brief=brief)
         self.work_dir = work_dir or tempfile.mkdtemp(prefix="vt_regen_")
-        self._ai_manager = None
+        self._ai_manager: AIGeneratorManager | None = None
 
     # ── 环境验证 ──
 
@@ -78,14 +82,14 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             )
 
         # 验证 FFmpeg
-        ffmpeg_path = config.get_ffmpeg_path()
+        ffmpeg_path = global_config.get_ffmpeg_path()
         try:
             subprocess.run(
                 [ffmpeg_path, "-version"],
                 capture_output=True,
                 timeout=10,
             )
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+        except FileNotFoundError, subprocess.TimeoutExpired:
             return False, (f"未找到 FFmpeg: {ffmpeg_path}\n" "请安装 FFmpeg 并确保在 PATH 中。")
 
         video_providers = [p for p in providers if p in ("fal", "openai")]
@@ -244,7 +248,6 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
     ) -> bool:
         """尝试生成视频片段，支持通过model_id选择模型."""
         from video_toolkit.ai.manager import AIGeneratorManager
-        from video_toolkit.config import config as global_config
 
         if self._ai_manager is None:
             self._ai_manager = AIGeneratorManager()
@@ -395,7 +398,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             f"s={width}x{height}:fps={fps}"
         )
 
-        ffmpeg_path = config.get_ffmpeg_path()
+        ffmpeg_path = global_config.get_ffmpeg_path()
         cmd = [
             ffmpeg_path,
             *FFMPEG_GLOBAL_ARGS,
@@ -467,7 +470,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             return
 
         tmp_path = clip_path + ".norm.mp4"
-        ffmpeg_path = config.get_ffmpeg_path()
+        ffmpeg_path = global_config.get_ffmpeg_path()
 
         crf_map = {"high": "18", "medium": "23", "low": "28"}
         crf = crf_map.get(config.quality, "20")
@@ -603,7 +606,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
     ):
         """将 TTS 旁白混入视频."""
         tmp_output = video_path + ".audio.mp4"
-        ffmpeg_path = config.get_ffmpeg_path()
+        ffmpeg_path = global_config.get_ffmpeg_path()
 
         cmd = [
             ffmpeg_path,
@@ -665,7 +668,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
     def _get_duration(path: str) -> float:
         try:
             info = get_video_info(path)
-            return info.get("duration", 0.0)
+            return float(info.get("duration", 0.0))
         except Exception:
             return 0.0
 

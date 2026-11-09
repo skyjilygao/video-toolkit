@@ -74,7 +74,7 @@ def get_video_info(video_path: str) -> dict[str, Any]:
                 num, den = r_frame_rate.split("/")
                 try:
                     info["fps"] = float(num) / float(den) if float(den) > 0 else 0.0
-                except (ValueError, ZeroDivisionError):
+                except ValueError, ZeroDivisionError:
                     info["fps"] = 0.0
 
         elif codec_type == "audio":

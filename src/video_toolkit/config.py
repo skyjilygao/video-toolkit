@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, cast
 
 import yaml
 
@@ -26,17 +26,17 @@ class Config:
     )
 
     def __init__(self):
-        self._fal_key: Optional[str] = None
-        self._openai_key: Optional[str] = None
-        self._elevenlabs_key: Optional[str] = None
-        self._seedance_key: Optional[str] = None
-        self._seedance_api_url: Optional[str] = None
-        self._seedance_model_version: Optional[str] = None
-        self._seedance_variant: Optional[str] = None
-        self._model_config: Optional[dict[str, Any]] = None
+        self._fal_key: str | None = None
+        self._openai_key: str | None = None
+        self._elevenlabs_key: str | None = None
+        self._seedance_key: str | None = None
+        self._seedance_api_url: str | None = None
+        self._seedance_model_version: str | None = None
+        self._seedance_variant: str | None = None
+        self._model_config: dict[str, Any] | None = None
 
     # ── 模型配置加载 ──
-    def load_model_config(self, config_path: Optional[str] = None) -> dict[str, Any]:
+    def load_model_config(self, config_path: str | None = None) -> dict[str, Any]:
         """加载模型配置文件.
 
         Args:
@@ -223,7 +223,7 @@ class Config:
                     )
         return models
 
-    def get_model_by_id(self, model_id: str) -> Optional[dict[str, Any]]:
+    def get_model_by_id(self, model_id: str) -> dict[str, Any] | None:
         """根据模型ID获取模型配置."""
         # 查找所有类型的模型
         all_models = self.get_video_models() + self.get_image_models() + self.get_audio_models()
@@ -232,12 +232,13 @@ class Config:
                 return model
         return None
 
-    def get_provider_config(self, provider_name: str) -> Optional[dict[str, Any]]:
+    def get_provider_config(self, provider_name: str) -> dict[str, Any] | None:
         """获取Provider配置."""
-        config = self.get_model_config()
-        return config.get("config", {}).get("providers", {}).get(provider_name)
+        model_config = self.get_model_config()
+        provider = model_config.get("config", {}).get("providers", {}).get(provider_name)
+        return cast(dict[str, Any], provider) if provider is not None else None
 
-    def get_api_key_for_provider(self, provider_name: str) -> Optional[str]:
+    def get_api_key_for_provider(self, provider_name: str) -> str | None:
         """获取指定Provider的API Key（从环境变量读取）."""
         provider = self.get_provider_config(provider_name)
         if not provider:
@@ -248,25 +249,25 @@ class Config:
         return os.environ.get(api_key_env, "") or None
 
     @property
-    def fal_key(self) -> Optional[str]:
+    def fal_key(self) -> str | None:
         if self._fal_key is None:
             self._fal_key = os.environ.get("FAL_KEY", "")
         return self._fal_key or None
 
     @property
-    def openai_key(self) -> Optional[str]:
+    def openai_key(self) -> str | None:
         if self._openai_key is None:
             self._openai_key = os.environ.get("OPENAI_API_KEY", "")
         return self._openai_key or None
 
     @property
-    def elevenlabs_key(self) -> Optional[str]:
+    def elevenlabs_key(self) -> str | None:
         if self._elevenlabs_key is None:
             self._elevenlabs_key = os.environ.get("ELEVENLABS_API_KEY", "")
         return self._elevenlabs_key or None
 
     @property
-    def seedance_key(self) -> Optional[str]:
+    def seedance_key(self) -> str | None:
         if self._seedance_key is None:
             self._seedance_key = os.environ.get("SEEDANCE_API_KEY", "")
         return self._seedance_key or None
