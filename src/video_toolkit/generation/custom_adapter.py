@@ -24,7 +24,11 @@ from rich.console import Console
 from video_toolkit.ai.base import GenerationRequest, GenerationType
 from video_toolkit.composition.composer import VideoComposer
 from video_toolkit.config import config as global_config
-from video_toolkit.generation.base import BaseGenerationAdapter
+from video_toolkit.generation.base import (
+    BaseGenerationAdapter,
+    GenerationCallSpec,
+    GenerationCandidate,
+)
 from video_toolkit.generation.prompt_engine import PromptEngine
 from video_toolkit.models.analysis import (
     AnalysisBrief,
@@ -41,6 +45,20 @@ console = Console()
 
 # FFmpeg 全局线程优化：避免 Windows 下的线程崩溃
 FFMPEG_GLOBAL_ARGS = ["-threads", "1"]
+
+
+def _configured_video_providers() -> set[str]:
+    """从全局模型配置中读取定义了 text-to-video 模型的 provider 集合.
+
+    与 ``Config.get_video_models`` 保持同一提取逻辑：``config.providers.*.models``
+    中 ``supports`` 含 ``text_to_video`` 的模型所属 provider。
+    早期读取不存在的顶层 ``models`` 列表（且字段为 ``type``/``supported``），
+    导致降级候选链（fal/openai）永远无法出现在 dry-run 输出中。
+    """
+    providers = {
+        str(m.get("provider")) for m in global_config.get_video_models() if m.get("provider")
+    }
+    return providers
 
 
 class CustomGenerationAdapter(BaseGenerationAdapter):
@@ -90,7 +108,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
                 timeout=10,
             )
         except FileNotFoundError, subprocess.TimeoutExpired:
-            return False, (f"未找到 FFmpeg: {ffmpeg_path}\n" "请安装 FFmpeg 并确保在 PATH 中。")
+            return False, (f"未找到 FFmpeg: {ffmpeg_path}\n请安装 FFmpeg 并确保在 PATH 中。")
 
         video_providers = [p for p in providers if p in ("fal", "openai")]
         return True, f"可用 Provider: {', '.join(video_providers)}"
@@ -128,7 +146,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             )
 
             # 4. 生成 AI 视频片段
-            tasks = self._generate_all_clips(scenes, config, prompt_engine)
+            tasks = self._generate_all_clips(config)
             result.tasks = tasks
 
             # 5. 收集成功的片段
@@ -163,8 +181,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
             result.original_duration = self.original_duration
             result.success = True
             result.message = (
-                f"视频再生完成: {len(segments)}/{len(scenes)} 个片段, "
-                f"总时长 {result.duration:.1f}s"
+                f"视频再生完成: {len(segments)}/{len(scenes)} 个片段, 总时长 {result.duration:.1f}s"
             )
             result.total_cost_estimate = self.estimate_cost(config, len(scenes))
 
@@ -180,29 +197,17 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
 
     # ── 片段生成 ──
 
-    def _generate_all_clips(
-        self,
-        scenes: list,
-        config: RegenerationConfig,
-        prompt_engine: PromptEngine,
-    ) -> list[SceneGenerationTask]:
-        """为所有场景生成 AI 视频片段."""
-        tasks: list[SceneGenerationTask] = []
+    def _generate_all_clips(self, config: RegenerationConfig) -> list[SceneGenerationTask]:
+        """为所有场景生成 AI 视频片段.
 
-        for scene in scenes:
-            task = SceneGenerationTask(
-                scene_index=scene.scene_index,
-                prompt=prompt_engine.build_scene_prompt(scene, layer_mode="full"),
-                narration_text=scene.narration_text or scene.description or "",
-                duration=min(scene.duration, config.max_clip_duration),
-            )
-            tasks.append(task)
+        prompt 构建复用 :meth:`build_generation_plan`，保证与 dry-run 完全一致。
+        """
+        tasks = self.build_generation_plan(config)
 
         # 逐个生成
         for i, task in enumerate(tasks):
             console.print(
-                f"[bold cyan]生成片段 [{i+1}/{len(tasks)}][/bold cyan] "
-                f"(场景 #{task.scene_index})"
+                f"[bold cyan]生成片段 [{i + 1}/{len(tasks)}][/bold cyan] (场景 #{task.scene_index})"
             )
             console.print(f"  [dim]Prompt: {task.prompt[:120]}...[/dim]")
 
@@ -241,103 +246,190 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
 
         task.status = "done" if success else "failed"
 
+    def build_generation_calls(
+        self,
+        task: SceneGenerationTask,
+        config: RegenerationConfig,
+        include_unregistered: bool = False,
+    ) -> GenerationCallSpec:
+        """构建该场景的大模型调用候选链（不发送请求）.
+
+        候选顺序: 用户指定模型 > seedance > fal > openai（+ 图片动画兜底仅展示）。
+        dry-run 与真实生成共用此方法，保证两边调用参数完全一致。
+
+        Parameters
+        ----------
+        include_unregistered : bool
+            为 True 时，``model_providers.yml`` 中已定义但运行环境未注册
+            （未配置 API Key）的 provider 也会作为候选输出，
+            以 ``available=False`` 标记，仅用于 dry-run 展示。
+        """
+        from video_toolkit.ai.manager import AIGeneratorManager
+
+        if self._ai_manager is None:
+            self._ai_manager = AIGeneratorManager()
+        registered = set(self._ai_manager.list_providers())
+        configured_providers = _configured_video_providers()
+
+        spec = GenerationCallSpec(scene_index=task.scene_index)
+        used_providers: set[str] = set()
+
+        def _add_candidate(
+            provider: str,
+            request: GenerationRequest,
+            model_id: str = "",
+            note: str = "fallback",
+        ) -> bool:
+            """追加候选；返回该候选是否已加入候选链.
+
+            调用方以返回值标记 provider 已被占用（``used_providers``），
+            因此应返回「是否追加成功」而非「是否已注册」，
+            否则未注册的首选 provider 会再次作为降级候选重复出现。
+            """
+            available = provider in registered
+            if not (available or include_unregistered):
+                return False
+            spec.candidates.append(
+                GenerationCandidate(
+                    provider=provider,
+                    request=request,
+                    model_id=model_id,
+                    note=note,
+                    available=available,
+                )
+            )
+            return True
+
+        # 1. 优先使用用户指定的模型ID
+        target_model_id = config.preferred_model_id
+        if not target_model_id:
+            target_model_id = (
+                global_config.get_model_config().get("config", {}).get("defaultVideoModel", "")
+            )
+        if target_model_id:
+            model_config = global_config.get_model_by_id(target_model_id)
+            if model_config:
+                provider_name = model_config.get("provider")
+                if provider_name:
+                    if _add_candidate(
+                        provider_name,
+                        self._build_video_request(
+                            task, config, provider_name, model_config=model_config
+                        ),
+                        model_id=target_model_id,
+                        note="preferred",
+                    ):
+                        used_providers.add(provider_name)
+
+        # 2. 降级链: seedance > fal > openai
+        for provider in ["seedance", "fal", "openai"]:
+            if provider in used_providers:
+                continue
+            if provider in registered or (
+                include_unregistered and provider in configured_providers
+            ):
+                if _add_candidate(provider, self._build_video_request(task, config, provider)):
+                    used_providers.add(provider)
+
+        # 3. 图片动画兜底（video_first 模式下视频失败后的降级，仅用于 dry-run 展示）
+        if config.generation_mode == "video_first" and "fal" not in used_providers:
+            if "fal" in registered or (include_unregistered and "fal" in configured_providers):
+                _add_candidate(
+                    "fal", self._build_image_request(task, config), note="image_fallback"
+                )
+
+        return spec
+
+    def _build_video_request(
+        self,
+        task: SceneGenerationTask,
+        config: RegenerationConfig,
+        provider: str,
+        model_config: dict | None = None,
+    ) -> GenerationRequest:
+        """构建视频生成请求（含 provider/模型专属额外参数）."""
+        extra_params = {
+            "output_dir": self.work_dir,
+        }
+        if provider == "seedance":
+            extra_params.update(
+                {
+                    "aspect_ratio": config.extra_params.get("aspect_ratio", "16:9"),
+                    "resolution": config.extra_params.get("resolution", "720p"),
+                }
+            )
+            if model_config:
+                extra_params.update(
+                    {
+                        "model_version": model_config.get("version", "2.0"),
+                        "variant": model_config.get("variant", "standard"),
+                    }
+                )
+        return GenerationRequest(
+            prompt=task.prompt,
+            generation_type=GenerationType.VIDEO,
+            duration=task.duration,
+            width=config.output_width,
+            height=config.output_height,
+            extra_params=extra_params,
+        )
+
+    def _build_image_request(
+        self,
+        task: SceneGenerationTask,
+        config: RegenerationConfig,
+    ) -> GenerationRequest:
+        """构建 FLUX 图片生成请求（图片动画降级用）."""
+        return GenerationRequest(
+            prompt=task.prompt,
+            generation_type=GenerationType.IMAGE,
+            width=config.output_width,
+            height=config.output_height,
+        )
+
     def _try_generate_video(
         self,
         task: SceneGenerationTask,
         config: RegenerationConfig,
     ) -> bool:
-        """尝试生成视频片段，支持通过model_id选择模型."""
-        from video_toolkit.ai.manager import AIGeneratorManager
+        """按候选链依次尝试生成视频（成功即停）.
 
-        if self._ai_manager is None:
-            self._ai_manager = AIGeneratorManager()
+        候选链由 :meth:`build_generation_calls` 构建，dry-run 输出同样来自此方法。
+        图片动画兑底由 :meth:`_generate_single_clip` 在视频失败后触发。
+        """
+        spec = self.build_generation_calls(task, config)
+        video_candidates = [
+            c for c in spec.candidates if c.note != "image_fallback" and c.available
+        ]
+        if not video_candidates:
+            console.print("  [red]无可用的视频生成模型[/red]")
+            return False
 
         mgr = self._ai_manager
+        if mgr is None:
+            from video_toolkit.ai.manager import AIGeneratorManager
 
-        # 1. 优先使用用户指定的模型ID
-        target_model_id = config.preferred_model_id
-        if not target_model_id:
-            # 使用默认模型
-            target_model_id = (
-                global_config.get_model_config().get("config", {}).get("defaultVideoModel", "")
-            )
+            mgr = AIGeneratorManager()
+            self._ai_manager = mgr
 
-        if target_model_id:
-            # 查找模型对应的provider
-            model_config = global_config.get_model_by_id(target_model_id)
-            if model_config:
-                provider_name = model_config.get("provider")
-                if provider_name and provider_name in mgr.list_providers():
-                    console.print(
-                        f"  [dim]使用模型 {target_model_id}（Provider: {provider_name}）生成视频[/dim]"
-                    )
-                    # 构建额外参数，传递模型特定配置
-                    extra_params = {
-                        "output_dir": self.work_dir,
-                    }
-                    # 如果是seedance，传递特定参数
-                    if provider_name == "seedance":
-                        extra_params.update(
-                            {
-                                "aspect_ratio": config.extra_params.get("aspect_ratio", "16:9"),
-                                "resolution": config.extra_params.get("resolution", "720p"),
-                                "model_version": model_config.get("version", "2.0"),
-                                "variant": model_config.get("variant", "standard"),
-                            }
-                        )
-
-                    request = GenerationRequest(
-                        prompt=task.prompt,
-                        generation_type=GenerationType.VIDEO,
-                        duration=task.duration,
-                        width=config.output_width,
-                        height=config.output_height,
-                        extra_params=extra_params,
-                    )
-                    gen_result = mgr.generate(request, provider=provider_name)
-                    if gen_result.success:
-                        downloaded = self._download_to_local(
-                            gen_result.output_path, task.output_path
-                        )
-                        if downloaded:
-                            self._normalize_clip(task.output_path, config)
-                            return True
-                    # 如果指定模型失败，打印警告并尝试降级
-                    console.print(
-                        f"  [yellow]模型 {target_model_id} 生成失败，尝试降级到可用模型[/yellow]"
-                    )
-
-        # 2. 降级逻辑：遍历所有可用的视频生成provider
-        providers = mgr.list_providers()
-        # 优先级：seedance > fal > openai
-        for provider in ["seedance", "fal", "openai"]:
-            if provider in providers:
-                console.print(f"  [dim]降级使用 {provider} 生成视频[/dim]")
-                extra_params = {
-                    "output_dir": self.work_dir,
-                }
-                if provider == "seedance":
-                    extra_params.update(
-                        {
-                            "aspect_ratio": config.extra_params.get("aspect_ratio", "16:9"),
-                            "resolution": config.extra_params.get("resolution", "720p"),
-                        }
-                    )
-
-                request = GenerationRequest(
-                    prompt=task.prompt,
-                    generation_type=GenerationType.VIDEO,
-                    duration=task.duration,
-                    width=config.output_width,
-                    height=config.output_height,
-                    extra_params=extra_params,
+        for cand in video_candidates:
+            if cand.note == "preferred":
+                console.print(
+                    f"  [dim]使用模型 {cand.model_id}（Provider: {cand.provider}）生成视频[/dim]"
                 )
-                gen_result = mgr.generate(request, provider=provider)
-                if gen_result.success:
-                    downloaded = self._download_to_local(gen_result.output_path, task.output_path)
-                    if downloaded:
-                        self._normalize_clip(task.output_path, config)
-                        return True
+            else:
+                console.print(f"  [dim]降级使用 {cand.provider} 生成视频[/dim]")
+
+            gen_result = mgr.generate(cand.request, provider=cand.provider)
+            if gen_result.success:
+                downloaded = self._download_to_local(gen_result.output_path, task.output_path)
+                if downloaded:
+                    self._normalize_clip(task.output_path, config)
+                    return True
+            # 失败后打印警告并尝试下一个候选
+            console.print(
+                f"  [yellow]{cand.model_id or cand.provider} 生成失败，尝试降级: {gen_result.message}[/yellow]"
+            )
 
         return False
 
@@ -355,12 +447,7 @@ class CustomGenerationAdapter(BaseGenerationAdapter):
         mgr = self._ai_manager
 
         # 生成图片
-        img_request = GenerationRequest(
-            prompt=task.prompt,
-            generation_type=GenerationType.IMAGE,
-            width=config.output_width,
-            height=config.output_height,
-        )
+        img_request = self._build_image_request(task, config)
 
         img_result = mgr.generate(img_request, provider="fal")
 

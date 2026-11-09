@@ -21,5 +21,6 @@ av>=11
 # 可选依赖:
 # pip install -e ".[audio]"    # librosa, soundfile
 # pip install -e ".[ai]"       # torch, transformers
+# pip install -e ".[youtube]"  # yt-dlp（在线视频源下载）, youtube-transcript-api
 # pip install -e ".[dev]"      # pytest, black, ruff, mypy
 # pip install -e ".[all]"

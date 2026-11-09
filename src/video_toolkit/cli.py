@@ -542,6 +542,118 @@ def test(video_dir):
 
 
 @main.command()
+@click.argument("source", metavar="SOURCE")
+@click.option(
+    "--output-dir", "-o", default="dryrun_output", help="结果输出目录 (默认 dryrun_output)"
+)
+@click.option(
+    "--adapter",
+    "-a",
+    type=click.Choice(["auto", "custom", "openmontage"]),
+    default="auto",
+    help="分析适配器",
+)
+@click.option(
+    "--depth",
+    type=click.Choice(["standard", "deep"]),
+    default="standard",
+    help="分析深度",
+)
+@click.option("--keyframes", "-k", default=10, help="最大关键帧数量 (默认 10)")
+@click.option(
+    "--scene-selection",
+    type=click.Choice(["all", "first_n", "indices"]),
+    default="all",
+    help="场景筛选: all / first_n / indices",
+)
+@click.option("--scene-count", default=0, type=int, help="first_n 模式下的场景数量")
+@click.option("--scene-indices", default="", help="indices 模式下的场景索引，如 0,2,3")
+@click.option("--max-clip-duration", default=5.0, type=float, help="单片段最大生成时长（秒）")
+@click.option("--style-prefix", default="", help="风格前缀（自动从分析结果推导）")
+@click.option("--style-suffix", default=None, help="风格后缀")
+@click.option(
+    "--provider",
+    "-p",
+    default="auto",
+    help="首选大模型 Provider (auto / seedance / fal / openai)",
+)
+@click.option("--model", "-md", default="", help="首选模型 ID（如 seedance-2.0-standard）")
+@click.option(
+    "--mode",
+    "-m",
+    type=click.Choice(["video_first", "image_animation"]),
+    default="video_first",
+    help="生成模式",
+)
+@click.option("--transcript", is_flag=True, help="提取字幕/转录（需要可选依赖，本地转录较慢）")
+def dryrun(
+    source,
+    output_dir,
+    adapter,
+    depth,
+    keyframes,
+    scene_selection,
+    scene_count,
+    scene_indices,
+    max_clip_duration,
+    style_prefix,
+    style_suffix,
+    provider,
+    model,
+    mode,
+    transcript,
+):
+    """Dry-Run 全流程: 获取视频 → 分析 → 拆解 → 输出大模型调用参数.
+
+    不调用大模型（无真实网络请求）、不执行 FFmpeg 拼接，
+    全部中间结果与大模型调用参数（含 prompt）写入 ``--output-dir``。
+
+    SOURCE 支持:
+    \b
+    - 本地视频路径: ./video.mp4
+    - 在线视频 URL: https://youtube.com/shorts/xxxxxx
+      （需要 yt-dlp: pip install yt-dlp）
+    - 直链视频: https://example.com/video.mp4
+
+    复用: 再次测试只需更换 SOURCE 重新执行本命令。
+    """
+    print_banner()
+
+    try:
+        from video_toolkit.pipeline import run_dry_run
+
+        indices = [int(x) for x in scene_indices.split(",") if x.strip()] if scene_indices else []
+        report = run_dry_run(
+            source=source,
+            output_dir=output_dir,
+            adapter=adapter,
+            depth=depth,
+            max_keyframes=keyframes,
+            scene_selection=scene_selection,
+            scene_count=scene_count,
+            scene_indices=indices,
+            max_clip_duration=max_clip_duration,
+            style_prefix=style_prefix,
+            style_suffix=style_suffix,
+            preferred_provider=provider,
+            preferred_model_id=model,
+            generation_mode=mode,
+            extract_transcript=transcript,
+        )
+        console.print(
+            f"\n[green]PASS[/green] - {len(report.tasks)} 个场景 prompt / "
+            f"{report.total_candidates} 个大模型调用候选（未发送真实请求）"
+        )
+
+    except Exception as e:
+        console.print(f"[red]Dry-Run 失败: {e}[/red]")
+        import traceback
+
+        console.print(f"[dim]{traceback.format_exc()}[/dim]")
+        sys.exit(1)
+
+
+@main.command()
 @click.argument("video_path", type=click.Path(exists=True))
 @click.option("--analysis", "-a", default=None, help="已有分析结果 JSON 路径（不传则重新分析）")
 @click.option(

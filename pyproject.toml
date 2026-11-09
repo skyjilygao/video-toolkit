@@ -91,9 +91,10 @@ module = [
     "faster_whisper",
     "scenedetect",
     "scenedetect.*",
-    "tools",
-    "tools.*",
-    "OpenMontage.*",
+"tools",
+"tools.*",
+"OpenMontage.*",
+"yt_dlp",
 ]
 ignore_missing_imports = true
 

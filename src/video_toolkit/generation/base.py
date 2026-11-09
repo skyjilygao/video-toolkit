@@ -8,12 +8,46 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 
+from video_toolkit.ai.base import GenerationRequest
+from video_toolkit.generation.prompt_engine import PromptEngine
 from video_toolkit.models.analysis import (
     AnalysisBrief,
     RegenerationConfig,
     RegenerationResult,
+    SceneGenerationTask,
 )
+
+
+@dataclass
+class GenerationCandidate:
+    """单个大模型调用候选.
+
+    Attributes
+    ----------
+    provider : 目标 Provider 名称（seedance / fal / openai ...）
+    request : 将发送给大模型的完整请求参数
+    model_id : 命中的模型 ID（可空，如通用 Provider）
+    note : 候选来源标记（preferred / fallback / image_fallback）
+    """
+
+    provider: str
+    request: GenerationRequest
+    model_id: str = ""
+    note: str = ""
+    available: bool = True  # True=已注册（真实生成可调用）；False=仅 dry-run 展示
+
+
+@dataclass
+class GenerationCallSpec:
+    """单个场景的大模型调用计划.
+
+    按优先级排列的候选链：真实生成时依次尝试，dry-run 时完整输出。
+    """
+
+    scene_index: int
+    candidates: list[GenerationCandidate] = field(default_factory=list)
 
 
 class BaseGenerationAdapter(ABC):
@@ -29,6 +63,34 @@ class BaseGenerationAdapter(ABC):
 
     - ``build_prompts`` — 从 SceneBrief 列表生成 prompt 和 narration
     """
+
+    def build_generation_plan(self, config: RegenerationConfig) -> list[SceneGenerationTask]:
+        """仅为选中场景构建生成任务（prompt + 时长），不调用大模型.
+
+        dry-run 与真实生成共用此方法，保证 prompt 逻辑一致。
+        """
+        scene_indices = self._filter_scenes(config)
+        if not scene_indices:
+            return []
+
+        prompt_engine = PromptEngine(
+            style_profile=self.brief.style_profile,
+            style_prefix=config.style_prefix,
+            style_suffix=config.style_suffix,
+        )
+
+        tasks: list[SceneGenerationTask] = []
+        for i in scene_indices:
+            scene = self.brief.scenes[i]
+            tasks.append(
+                SceneGenerationTask(
+                    scene_index=scene.scene_index,
+                    prompt=prompt_engine.build_scene_prompt(scene, layer_mode="full"),
+                    narration_text=scene.narration_text or scene.description or "",
+                    duration=min(scene.duration, config.max_clip_duration),
+                )
+            )
+        return tasks
 
     name: str = "base"
 

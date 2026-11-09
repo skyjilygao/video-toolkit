@@ -50,6 +50,10 @@ video-toolkit decompose path/to/video.mp4 -m scenes -o ./segments
 # 合成视频
 video-toolkit compose segment1.mp4 segment2.mp4 -o output.mp4
 
+# Dry-Run 全流程测试（本地视频或在线 URL；不调用大模型、不拼接）
+video-toolkit dryrun path/to/video.mp4 -o ./dryrun_output
+video-toolkit dryrun "https://youtube.com/shorts/xxxxxx" -o ./dryrun_output
+
 # AI 生成
 video-toolkit ai "a sunset over mountains" --type image -o output.png
 ```
@@ -129,6 +133,7 @@ output/
 | audio | `pip install -e ".[audio]"` | librosa, soundfile |
 | whisper | `pip install -e ".[whisper]"` | faster-whisper |
 | openmontage | `pip install -e ".[openmontage]"` | faster-whisper, scenedetect, av |
+| youtube | `pip install -e ".[youtube]"` | yt-dlp, youtube-transcript-api |
 | ai | `pip install -e ".[ai]"` | torch, transformers |
 | dev | `pip install -e ".[dev]"` | pytest, black, ruff, mypy |
 | all | `pip install -e ".[all]"` | 全部可选运行时依赖 |
@@ -163,6 +168,36 @@ python -m pytest tests/ -v --tb=short
 
 # 一键脚本
 python run_e2e_test.py
+```
+
+### Dry-Run 全流程测试（可复用）
+
+`video-toolkit dryrun` 将完整流程串成一条命令（可复用，更换视频源即可重跑）：
+
+```bash
+# 完整流程: 获取视频源 → 分析 → 场景拆解 → 输出大模型调用参数
+video-toolkit dryrun path/to/video.mp4 -o ./dryrun_output
+video-toolkit dryrun "https://youtube.com/shorts/xxxxxx" -o ./dryrun_output
+```
+
+- 输入源：本地路径、YouTube URL（`yt-dlp`）、HTTP(S) 直链
+- 在线源下载后自动校验（FFprobe）与失败重试，避免损坏文件进入后续分析；
+  `DirectUrlSource` 会拒绝把 HTML 页面当作视频保存
+- **不调用大模型**（无真实网络请求）、**不拼接**；全部中间结果写入 `output_dir`，
+  其中 `generation/llm_calls.json` 包含每个场景的完整大模型调用参数（含 prompt）
+
+输出目录结构:
+
+```
+dryrun_output/
+├── README.md                  # 流程摘要
+├── downloaded/                # 在线视频下载目录
+├── analysis/<video>/          # 分析报告 (analysis.json / summary.md / keyframes/...)
+├── decomposition/             # 拆解索引 + 原画面片段
+└── generation/
+    ├── llm_calls.json         # 全部大模型调用参数（含 prompt）
+    ├── llm_calls.md           # 可读版
+    └── prompts.txt            # 场景 prompt 列表
 ```
 
 ### 覆盖率跟踪
