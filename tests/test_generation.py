@@ -384,6 +384,85 @@ class TestCLIHelpers:
         assert prefix == ""
 
 
+# ── 测试 6: 多模型调用候选链 ──
+
+
+class TestGenerationRouting:
+    """CustomGenerationAdapter 的多模型调用候选链（dry-run 参数完整性）.
+
+    历史 bug: ``_configured_video_providers`` 读取不存在的顶层 ``models``
+    列表（恒为空集），导致降级候选（fal/openai）永远无法出现在
+    dry-run 输出中；``_add_candidate`` 返回「是否已注册」而非
+    「是否已加入」，未注册的首选 provider 会重复入链。
+    """
+
+    class _FakeManager:
+        def __init__(self, providers):
+            self._providers = list(providers)
+
+        def list_providers(self):
+            return self._providers
+
+    @staticmethod
+    def _make_adapter(tmp_path):
+        from video_toolkit.generation.custom_adapter import CustomGenerationAdapter
+
+        return CustomGenerationAdapter("/fake/video.mp4", make_mock_brief(tmp_path))
+
+    def _build_calls(self, adapter, include_unregistered):
+        from video_toolkit.models.analysis import (
+            RegenerationConfig,
+            SceneGenerationTask,
+        )
+
+        config = RegenerationConfig()
+        task = SceneGenerationTask(scene_index=0, prompt="A sunny beach", duration=5.0)
+        return adapter.build_generation_calls(
+            task, config, include_unregistered=include_unregistered
+        )
+
+    def test_configured_video_providers(self):
+        """默认 models.config.yml 应解析出 seedance 与 fal 的视频模型 provider."""
+        from video_toolkit.generation.custom_adapter import (
+            _configured_video_providers,
+        )
+
+        providers = _configured_video_providers()
+        assert "seedance" in providers
+        assert "fal" in providers  # fal-kling-2.0 声明了 text_to_video
+
+    def test_chain_includes_unregistered_fallbacks(self, monkeypatch, tmp_path):
+        """无 API Key 时 include_unregistered=True 应完整输出降级候选链."""
+        adapter = self._make_adapter(tmp_path)
+        monkeypatch.setattr(adapter, "_ai_manager", self._FakeManager([]), raising=False)
+
+        spec = self._build_calls(adapter, include_unregistered=True)
+
+        providers = [c.provider for c in spec.candidates]
+        assert providers == ["seedance", "fal"]
+        assert spec.candidates[0].note == "preferred"
+        assert spec.candidates[0].available is False
+        assert spec.candidates[1].note == "fallback"
+        assert spec.candidates[1].available is False
+
+    def test_chain_excludes_unregistered_by_default(self, monkeypatch, tmp_path):
+        """默认（include_unregistered=False）且无注册 provider 时候选链为空."""
+        adapter = self._make_adapter(tmp_path)
+        monkeypatch.setattr(adapter, "_ai_manager", self._FakeManager([]), raising=False)
+
+        spec = self._build_calls(adapter, include_unregistered=False)
+        assert spec.candidates == []
+
+    def test_chain_with_registered_preferred(self, monkeypatch, tmp_path):
+        """已注册 provider 标记 available=True，且不被重复加入降级链."""
+        adapter = self._make_adapter(tmp_path)
+        monkeypatch.setattr(adapter, "_ai_manager", self._FakeManager(["seedance"]), raising=False)
+
+        spec = self._build_calls(adapter, include_unregistered=False)
+        assert [c.provider for c in spec.candidates] == ["seedance"]
+        assert spec.candidates[0].available is True
+
+
 # ── 入口点 ──
 
 if __name__ == "__main__":

@@ -29,6 +29,41 @@ from video_toolkit.ai.base import (
     GenerationType,
 )
 
+# ── Dry-Run 请求审计 ──
+
+
+def _log_request(
+    provider_name: str,
+    request: GenerationRequest,
+    model_info: dict[str, str] | None = None,
+) -> None:
+    """打印将发送给大模型的完整请求参数（Dry-Run 审计）.
+
+    用于在不发起真实 API 请求的前提下，验证全流程中会产生的大模型调用参数，
+    特别是生成新视频的 prompt。
+    """
+    print()
+    print("=" * 78)
+    print(f"  [DryRun · 跳过真实大模型调用] Provider: {provider_name} (Mock)")
+    print("=" * 78)
+    if model_info:
+        for key, value in model_info.items():
+            print(f"  - {key}: {value}")
+    print(f"  - 生成类型: {request.generation_type.value}")
+    print(f"  - 分辨率  : {request.width} x {request.height}")
+    print(f"  - 时长    : {request.duration} s")
+    if request.negative_prompt:
+        print(f"  - 反向提示: {request.negative_prompt}")
+    if request.seed is not None:
+        print(f"  - 随机种子: {request.seed}")
+    if request.extra_params:
+        print(f"  - 额外参数: {request.extra_params}")
+    print("-" * 78)
+    print("  [Prompt]")
+    print(f"  {request.prompt}")
+    print("=" * 78)
+
+
 # ── Mock 视频生成器 ──
 
 
@@ -56,6 +91,11 @@ class MockVideoGenerator(BaseAIGenerator):
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         """生成 Mock 视频 — 根据 prompt 哈希颜色."""
+        _log_request(
+            f"{self.provider_name} (MockVideoGenerator)",
+            request,
+            {"fixed_color": self._fixed_color},
+        )
         self._call_count += 1
 
         # 根据 prompt 关键词选择颜色
@@ -136,6 +176,7 @@ class MockImageGenerator(BaseAIGenerator):
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         """生成 Mock 图片."""
+        _log_request(f"{self.provider_name} (MockImageGenerator)", request)
         self._call_count += 1
 
         output_path = os.path.join(
@@ -192,6 +233,7 @@ class MockAudioGenerator(BaseAIGenerator):
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         """生成 Mock 音频."""
+        _log_request(f"{self.provider_name} (MockAudioGenerator)", request)
         self._call_count += 1
 
         output_path = os.path.join(
@@ -265,6 +307,11 @@ class MockSeedanceGenerator(BaseAIGenerator):
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         """生成 Mock Seedance 视频."""
+        _log_request(
+            f"{self.provider_name} (MockSeedanceGenerator)",
+            request,
+            {"model_version": self._model_version, "variant": self._variant},
+        )
         self._call_count += 1
 
         if request.generation_type == GenerationType.VIDEO:
